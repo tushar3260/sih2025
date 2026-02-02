@@ -1,39 +1,90 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Users, Heart, UserCheck, BarChart3, Plus, Calendar, Clock, Star, TrendingUp, Play, CheckCircle, DollarSign, User, Phone, Mail, MapPin, Activity, LogOut } from 'lucide-react';
+import { 
+  Home, Users, Heart, BarChart3, LogOut, 
+  Calendar, Clock, Star, Play, CheckCircle, 
+  User, Mail, Plus, Activity, Leaf, Search, ArrowRight 
+} from 'lucide-react';
+import { motion, AnimatePresence } from "framer-motion";
 import { io } from "socket.io-client";
 import axios from 'axios';
+
+// --- 1. Global Styles & Theme (Matches Landing Page) ---
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+    
+    :root {
+      --color-bg: #F5F5F4;
+      --color-text-main: #1C1917;
+      --color-primary: #064E3B;
+      --color-accent: #D97706;
+    }
+
+    body { 
+      font-family: 'Manrope', sans-serif; 
+      background-color: var(--color-bg);
+      color: var(--color-text-main);
+    }
+    
+    .serif { font-family: 'Playfair Display', serif; }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+  `}</style>
+);
+
+// --- 2. UI Components (Glassmorphism) ---
+
+const GlassCard = ({ children, className = "", delay = 0 }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5, delay, type: "spring", stiffness: 50 }}
+    className={`bg-white/60 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl ${className}`}
+  >
+    {children}
+  </motion.div>
+);
+
+const SectionHeader = ({ title, subtitle, action }) => (
+  <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-8 gap-4">
+    <div>
+      <h2 className="text-3xl font-bold text-emerald-950 serif tracking-tight">{title}</h2>
+      {subtitle && <p className="text-stone-500 font-medium mt-1">{subtitle}</p>}
+    </div>
+    {action}
+  </div>
+);
+
+// --- 3. Main Dashboard Component ---
 
 const AyurvedaDoctorDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [therapiesList, setTherapiesList] = useState([]);
   const [loadingTherapies, setLoadingTherapies] = useState(true);
   
-  // Add states for patients
   const [patients, setPatients] = useState([]);
-  const [loadingPatients, setLoadingPatients] = useState(true); // ✅ Start with loading true
+  const [loadingPatients, setLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState(null);
   const [notifications, setNotifications] = useState([]);
 
-  // ✅ Get complete user and practitioner data
+  // User Data
   const userData = JSON.parse(localStorage.getItem("user"));
-  const practitionerData = JSON.parse(localStorage.getItem("practioner")); // Note: your localStorage key has typo
+  const practitionerData = JSON.parse(localStorage.getItem("practioner"));
   
   const pracId = userData?.id;
-  const practitionerName = userData?.name || "Doctor";
-  const practitionerEmail = userData?.email || "";
+  const practitionerName = userData?.name || "Vaidya";
   const practitionerSpecialty = practitionerData?.specialty?.[0] || "Ayurveda Specialist";
 
-  console.log('Practitioner ID:', pracId);
-  console.log('User Data:', userData);
-  console.log('Practitioner Data:', practitionerData);
-
-  // Sidebar
+  // Sidebar Items
   const sidebarItems = [
-    { id: 'dashboard', icon: Home, label: 'Dashboard' },
-    { id: 'patients', icon: Users, label: 'Patients' },
+    { id: 'dashboard', icon: Home, label: 'Overview' },
+    { id: 'patients', icon: Users, label: 'My Patients' },
     { id: 'therapies', icon: Heart, label: 'Therapies' },
-    { id: 'reports', icon: BarChart3, label: 'Reports' },
-    { id: 'logout', icon: LogOut, label: 'Logout' }
+    { id: 'reports', icon: BarChart3, label: 'Analytics' },
   ];
 
   const handleLogout = () => {
@@ -42,576 +93,399 @@ const AyurvedaDoctorDashboard = () => {
     window.location.href = "/";
   };
 
-  // Static Data (keeping as is)
-  const todaysAppointments = [
-    {
-      id: 1,
-      patient: 'Tushar Arya',
-      time: '10:00 AM - 11:00 AM',
-      therapy: 'Abhyanga',
-      status: 'scheduled',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b647?w=150&h=150&fit=crop&crop=face',
-      condition: 'Stress & Fatigue'
-    },
-    {
-      id: 2,
-      patient: 'Singh',
-      time: '11:30 AM - 12:30 PM',
-      therapy: 'Shirodhara',
-      status: 'in-progress',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-face',
-      condition: 'Anxiety & Insomnia'
-    },
-    {
-      id: 3,
-      patient: 'Shiva',
-      time: '2:00 PM - 3:00 PM',
-      therapy: 'Swedana',
-      status: 'completed',
-      avatar: 'https://images.unsplash.com=face',
-      condition: 'Joint Pain'
-    }
-  ];
-
-  const doctorId = userData?.id;
-
-  // Socket.io setup (keeping as is)
-  useEffect(() => {
-    const socket = io("http://localhost:5000", {
-      transports: ["websocket"],
-    });
-
-    socket.on("connect", () => {
-      console.log("✅ Connected:", socket.id);
-      socket.emit("joinAsDoctor", doctorId);
-    });
-
-    socket.on("newAppointment", (data) => {
-      console.log("📩 New Appointment:", data);
-      setNotifications((prev) => [...prev, data.message]);
-    });
-
-    socket.on("connect_error", (err) => {
-      console.error("❌ Connect Error:", err.message);
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [doctorId]);
-
-  const activeSessions = [
-    { patient: 'Tushar Arya', therapy: 'Abhyanga', progress: 60, timeRemaining: '25 min', therapist: 'Vartul Arora' },
-    { patient: 'Singh', therapy: 'Shirodhara', progress: 40, timeRemaining: '35 min', therapist: 'Kushagra' }
-  ];
-
-  // ✅ Fetch Patients on Dashboard Load (not just on tab switch)
+  // Socket & Initial Data
   useEffect(() => {
     if (pracId) {
-      fetchPatients(); // Fetch patients on component mount
-      fetchTherapies(); // Fetch therapies on component mount
+      fetchPatients();
+      fetchTherapies();
     }
+    const socket = io(import.meta.env.VITE_API_BASE_URL || "http://localhost:5000", { transports: ["websocket"] });
+    socket.on("connect", () => socket.emit("joinAsDoctor", pracId));
+    socket.on("newAppointment", (data) => setNotifications((prev) => [...prev, data.message]));
+    return () => socket.disconnect();
   }, [pracId]);
 
-  // ✅ Also fetch when patients tab is active (for refresh)
-  useEffect(() => {
-    if (activeTab === 'patients' && pracId) {
-      fetchPatients();
-    }
-  }, [activeTab, pracId]);
-
-  // ✅ Enhanced fetchPatients function
+  // Data Fetching
   const fetchPatients = async () => {
-    if (!pracId) {
-      setPatientsError('Practitioner ID not found');
-      setLoadingPatients(false);
-      return;
-    }
-
+    if (!pracId) return;
     try {
       setLoadingPatients(true);
-      setPatientsError(null);
-
-      console.log('Fetching patients for practitioner:', pracId);
-
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/appointments/68b27b0f2a074e28c056694b`);
-      console.log('Appointments Response:', response.data);
-
-      // Extract unique patients from appointments
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/appointments/68b27b0f2a074e28c056694b`);
+      
       const uniquePatients = [];
       const patientIds = new Set();
-
       response.data.forEach(appointment => {
         if (appointment && !patientIds.has(appointment._id || appointment.id)) {
           patientIds.add(appointment._id || appointment.id);
-          
-          const patientData = {
+          uniquePatients.push({
             id: appointment._id || appointment.id,
-            name: appointment.name || 'Unknown Patient',
+            name: appointment.name || 'Guest Patient',
             email: appointment.email || 'No email'
-          };
-          
-          uniquePatients.push(patientData);
+          });
         }
       });
-
-      console.log('Unique Patients:', uniquePatients);
       setPatients(uniquePatients);
-      
     } catch (err) {
-      console.error('Error fetching patients:', err);
-      
-      if (err.code === 'ECONNABORTED') {
-        setPatientsError('Request timeout. Please try again.');
-      } else if (err.response) {
-        setPatientsError(err.response.data?.message || `Server error: ${err.response.status}`);
-      } else if (err.request) {
-        setPatientsError('Network error. Please check your connection.');
-      } else {
-        setPatientsError(err.message || 'An unexpected error occurred');
-      }
-      setPatients([]); // ✅ Set empty array on error
+      setPatientsError("Unable to fetch records.");
     } finally {
       setLoadingPatients(false);
     }
   };
 
-  // ✅ Enhanced fetchTherapies function
   const fetchTherapies = async () => {
-    if (!pracId) {
-      setLoadingTherapies(false);
-      return;
-    }
-
+    if (!pracId) return;
     try {
       setLoadingTherapies(true);
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/therapies/practitioner/${pracId}`);
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/therapies/practitioner/${pracId}`);
       const data = await res.json();
       setTherapiesList(data);
-    } catch (error) {
-      console.error('Error fetching therapies:', error);
-      setTherapiesList([]); // ✅ Set empty array on error
+    } catch (err) {
+      setTherapiesList([]);
     } finally {
       setLoadingTherapies(false);
     }
   };
 
-  // ✅ Refresh function for dashboard data
   const refreshDashboardData = async () => {
-    if (!pracId) return;
-    
     setLoadingPatients(true);
     setLoadingTherapies(true);
-    
-    await Promise.all([
-      fetchPatients(),
-      fetchTherapies()
-    ]);
+    await Promise.all([fetchPatients(), fetchTherapies()]);
   };
 
-  // ✅ Updated renderDashboard with dynamic counts and refresh button
+  // --- RENDERERS ---
+
   const renderDashboard = () => (
-    <div className="space-y-8">
-      {/* ✅ Updated Header with Refresh Button */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-100 shadow-md border-b border-emerald-200 p-6 flex justify-between items-center rounded-b-2xl">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-emerald-900 tracking-tight">
-            Welcome Dr. {practitionerName}
-          </h1>
-          <p className="text-emerald-700 mt-1 text-sm md:text-base">
-            Today you have, <span className="font-semibold">3 appointments</span> 
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* ✅ Refresh Button */}
-          <button
-            onClick={refreshDashboardData}
-            disabled={loadingPatients || loadingTherapies}
-            className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
-            title="Refresh Dashboard Data"
-          >
-            <Activity size={16} className={loadingPatients || loadingTherapies ? 'animate-spin' : ''} />
-          </button>
-          
-          <img
-            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTiIYxZD7Fw6NhfXKNiIBeah7ibDw0pDwTjqNVF9pvxiMfLY689fTtr2TA&s"
-            alt="Doctor Avatar"
-            className="w-14 h-14 rounded-full border-2 border-indigo-600"
-          />
-          <div>
-            <p className="font-semibold text-gray-900">Dr. {practitionerName}</p>
-            <p className="text-gray-500 text-sm">{practitionerSpecialty}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* ✅ Updated Stats Cards with Dynamic Counts */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-6 border border-blue-200 hover:shadow-lg transition-shadow cursor-pointer">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-500 rounded-xl">
-              <Users size={24} className="text-white" />
-            </div>
-            <TrendingUp className="text-blue-500" size={20} />
-          </div>
-          {/* ✅ Dynamic Patient Count with Loading State */}
-          <p className="text-3xl font-bold text-gray-900 mb-1">
-            {loadingPatients ? (
-              <span className="animate-pulse">...</span>
-            ) : (
-              Array.isArray(patients) ? patients.length : 0
-            )}
-          </p>
-          <p className="text-blue-700 font-medium">Total Patients</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-emerald-50 to-green-100 rounded-2xl p-6 border border-emerald-200 hover:shadow-lg transition-shadow cursor-pointer">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-emerald-500 rounded-xl">
-              <Heart size={24} className="text-white" />
-            </div>
-            <TrendingUp className="text-emerald-500" size={20} />
-          </div>
-          {/* ✅ Dynamic Therapy Count with Loading State */}
-          <p className="text-3xl font-bold text-gray-900 mb-1">
-            {loadingTherapies ? (
-              <span className="animate-pulse">...</span>
-            ) : (
-              Array.isArray(therapiesList) ? therapiesList.length : 0
-            )}
-          </p>
-          <p className="text-emerald-700 font-medium">Active Therapies</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-amber-50 to-orange-100 rounded-2xl p-6 border border-amber-200 hover:shadow-lg transition-shadow cursor-pointer">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-amber-500 rounded-xl">
-              <Star size={24} className="text-white" />
-            </div>
-            <Star className="text-amber-500" size={20} />
-          </div>
-          <p className="text-3xl font-bold text-gray-900 mb-1">4.9</p>
-          <p className="text-amber-700 font-medium">Patient Rating</p>
-        </div>
-      </div>
-
-      {/* Today's Schedule */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-900">Today's Schedule</h2>
-          <Calendar className="text-gray-400" size={24} />
-        </div>
-        <div className="p-6 space-y-4">
-          {todaysAppointments.map((appointment) => (
-            <div key={appointment.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group">
-              <div 
-                className="w-14 h-14 rounded-full bg-center bg-cover shadow-md"
-                style={{ backgroundImage: `url(${appointment.avatar})` }}
-              />
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900 mb-1">{appointment.patient}</p>
-                <p className="text-emerald-600 font-medium text-sm flex items-center gap-2">
-                  <Clock size={14} />
-                  {appointment.time}
+    <div className="space-y-8 max-w-6xl mx-auto">
+      {/* Welcome Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-3xl bg-emerald-900 text-white p-8 md:p-12 shadow-2xl shadow-emerald-900/20"
+      >
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-800 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -mr-16 -mt-16 animate-pulse"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 -ml-10 -mb-10"></div>
+        
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+                <div className="flex items-center gap-2 text-emerald-300 font-bold tracking-widest text-xs uppercase mb-2">
+                    <Activity size={14} /> Clinical Overview
+                </div>
+                <h1 className="text-3xl md:text-5xl font-bold serif mb-2">Namaste, Dr. {practitionerName}</h1>
+                <p className="text-emerald-100/80 font-medium max-w-xl">
+                    You have <span className="text-white font-bold border-b border-amber-500">3 appointments</span> today. 
+                    Your clinic performance is up by 12% this week.
                 </p>
-                <p className="text-gray-500 text-sm">{appointment.condition}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-medium text-gray-900 mb-2">{appointment.therapy}</p>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                  appointment.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
-                  appointment.status === 'in-progress' ? 'bg-amber-100 text-amber-700' :
-                  'bg-emerald-100 text-emerald-700'
-                }`}>
-                  {appointment.status === 'in-progress' ? (
-                    <><Play size={12} className="mr-1" />In Progress</>
-                  ) : appointment.status === 'completed' ? (
-                    <><CheckCircle size={12} className="mr-1" />Completed</>
-                  ) : 'Scheduled'}
-                </span>
-              </div>
             </div>
-          ))}
+            <button 
+                onClick={refreshDashboardData}
+                className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white px-5 py-3 rounded-full flex items-center gap-2 transition-all"
+            >
+                <Activity size={18} className={loadingPatients ? "animate-spin" : ""} /> Sync Data
+            </button>
         </div>
+      </motion.div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <GlassCard delay={0.1} className="p-6 hover:border-emerald-500/30 transition-colors group">
+            <div className="flex items-start justify-between mb-4">
+                <div className="p-3 bg-stone-100 rounded-xl text-stone-600 group-hover:bg-emerald-100 group-hover:text-emerald-800 transition-colors">
+                    <Users size={24} />
+                </div>
+                <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded-full">+4 this week</span>
+            </div>
+            <h3 className="text-4xl font-bold text-gray-900 serif mb-1">
+                {loadingPatients ? "..." : patients.length}
+            </h3>
+            <p className="text-stone-500 font-medium text-sm">Total Patients</p>
+        </GlassCard>
+
+        <GlassCard delay={0.2} className="p-6 hover:border-amber-500/30 transition-colors group">
+            <div className="flex items-start justify-between mb-4">
+                <div className="p-3 bg-stone-100 rounded-xl text-stone-600 group-hover:bg-amber-100 group-hover:text-amber-800 transition-colors">
+                    <Heart size={24} />
+                </div>
+                <span className="text-xs font-bold bg-stone-200 text-stone-600 px-2 py-1 rounded-full">Active</span>
+            </div>
+            <h3 className="text-4xl font-bold text-gray-900 serif mb-1">
+                {loadingTherapies ? "..." : therapiesList.length}
+            </h3>
+            <p className="text-stone-500 font-medium text-sm">Therapies Listed</p>
+        </GlassCard>
+
+        <GlassCard delay={0.3} className="p-6 hover:border-blue-500/30 transition-colors group">
+             <div className="flex items-start justify-between mb-4">
+                <div className="p-3 bg-stone-100 rounded-xl text-stone-600 group-hover:bg-blue-100 group-hover:text-blue-800 transition-colors">
+                    <Star size={24} />
+                </div>
+                <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full">Top Rated</span>
+            </div>
+            <h3 className="text-4xl font-bold text-gray-900 serif mb-1">4.9</h3>
+            <p className="text-stone-500 font-medium text-sm">Patient Satisfaction</p>
+        </GlassCard>
       </div>
 
-      {/* Active Sessions + AI Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Active Sessions */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
-          <div className="px-6 py-5 border-b border-gray-100">
-            <h3 className="text-xl font-bold text-gray-900">Active Sessions</h3>
-          </div>
-          <div className="p-6 space-y-6">
-            {activeSessions.map((session, index) => (
-              <div key={index} className="space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-semibold text-gray-900">{session.patient}</p>
-                    <p className="text-emerald-600 text-sm font-medium">{session.therapy}</p>
-                    <p className="text-gray-500 text-sm">with {session.therapist}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">{session.timeRemaining}</p>
-                    <p className="text-xs text-gray-500">remaining</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Progress</span>
-                    <span className="font-medium text-gray-900">{session.progress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-gradient-to-r from-emerald-500 to-teal-600 h-2 rounded-full transition-all duration-500" 
-                      style={{ width: `${session.progress}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* AI Insights */}
-        <div className="bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 rounded-2xl p-6 text-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12"></div>
-          <div className="relative z-10">
-            <h3 className="text-xl font-bold mb-4">AI Insights</h3>
-            <div className="space-y-4">
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                <h4 className="font-semibold mb-2">Treatment Recommendation</h4>
-                <p className="text-white/90 text-sm">Based on patient analysis, consider adding Swedana therapy for enhanced stress relief.</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                <h4 className="font-semibold mb-2">Schedule Optimization</h4>
-                <p className="text-white/90 text-sm">Your afternoon slots are underutilized. Consider promoting 2-4 PM time slots.</p>
-              </div>
+      {/* Schedule & Sessions */}
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Today's Schedule */}
+        <GlassCard delay={0.4} className="lg:col-span-2 overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-stone-100 bg-white/40 flex justify-between items-center">
+                <h3 className="text-lg font-bold serif text-stone-800">Today's Schedule</h3>
+                <Calendar size={18} className="text-stone-400"/>
             </div>
-          </div>
+            <div className="p-6 space-y-4">
+                 {[
+                    { id: 1, name: 'Tushar Arya', therapy: 'Abhyanga', time: '10:00 AM', status: 'scheduled' },
+                    { id: 2, name: 'Singh', therapy: 'Shirodhara', time: '11:30 AM', status: 'active' },
+                    { id: 3, name: 'Shiva', therapy: 'Swedana', time: '02:00 PM', status: 'done' },
+                 ].map((apt, i) => (
+                     <div key={i} className="flex items-center gap-4 p-4 rounded-xl hover:bg-white/50 border border-transparent hover:border-stone-200 transition-all group cursor-pointer">
+                        <div className={`w-2 h-12 rounded-full ${apt.status === 'active' ? 'bg-amber-500' : apt.status === 'done' ? 'bg-emerald-500' : 'bg-stone-300'}`}></div>
+                        <div className="w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center text-stone-600 font-bold">
+                            {apt.name[0]}
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="font-bold text-gray-900 group-hover:text-emerald-800 transition-colors">{apt.name}</h4>
+                            <p className="text-xs text-stone-500 uppercase tracking-wide">{apt.therapy}</p>
+                        </div>
+                        <div className="text-right">
+                             <div className="flex items-center gap-1 text-sm font-bold text-stone-700 bg-stone-100 px-3 py-1 rounded-full">
+                                <Clock size={14} className="text-amber-600"/> {apt.time}
+                             </div>
+                        </div>
+                     </div>
+                 ))}
+            </div>
+        </GlassCard>
+
+        {/* Quick Actions / AI Insight */}
+        <div className="space-y-6">
+            <GlassCard delay={0.5} className="p-6 bg-gradient-to-br from-emerald-900 to-emerald-950 text-white border-none">
+                <div className="flex items-center gap-2 mb-4 text-emerald-300">
+                    <Activity size={18} />
+                    <span className="text-xs font-bold uppercase tracking-widest">AI Insight</span>
+                </div>
+                <p className="text-lg font-medium serif leading-relaxed mb-4">
+                    "Patient retention is highest for Swedana therapy this month."
+                </p>
+                <button className="text-sm font-bold text-white border-b border-emerald-500 pb-0.5 hover:text-emerald-300 transition-colors">
+                    View Analytics &rarr;
+                </button>
+            </GlassCard>
+
+            <GlassCard delay={0.6} className="p-6">
+                <h4 className="font-bold text-stone-800 mb-4">Quick Actions</h4>
+                <div className="space-y-2">
+                    <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-emerald-50 text-stone-600 hover:text-emerald-800 transition-all text-sm font-bold">
+                        <div className="p-2 bg-emerald-100 rounded-md text-emerald-700"><Plus size={16}/></div>
+                        Add New Patient
+                    </button>
+                    <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-emerald-50 text-stone-600 hover:text-emerald-800 transition-all text-sm font-bold">
+                        <div className="p-2 bg-amber-100 rounded-md text-amber-700"><Calendar size={16}/></div>
+                        Block Calendar
+                    </button>
+                </div>
+            </GlassCard>
         </div>
       </div>
     </div>
   );
 
-  // Patients section (keeping exactly as is)
-  const renderPatients = () => {
-    if (loadingPatients) {
-      return (
-        <div className="space-y-6">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Patients</h1>
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <span className="ml-3 text-gray-600">Loading patients...</span>
-          </div>
-        </div>
-      );
-    }
-
-    if (patientsError) {
-      return (
-        <div className="space-y-6">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Patients</h1>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <div className="flex items-center justify-center mb-3">
-              <Activity className="h-8 w-8 text-red-400 mr-2" />
-              <span className="text-red-800 font-medium text-lg">Error Loading Patients</span>
+  const renderPatients = () => (
+    <div className="max-w-6xl mx-auto">
+      <SectionHeader 
+        title="My Patients" 
+        subtitle="Manage records and treatment history" 
+        action={
+            <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 group-hover:text-emerald-600 transition-colors" size={18} />
+                <input 
+                    type="text" 
+                    placeholder="Search patients..." 
+                    className="pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 w-64 shadow-sm"
+                />
             </div>
-            <p className="text-red-700 mb-4">{patientsError}</p>
-            <button 
-              onClick={fetchPatients}
-              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      );
-    }
+        }
+      />
 
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-4xl font-bold text-gray-900">Patients</h1>
-          <div className="text-sm text-gray-600">
-            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
-              Total: {patients.length} patients
-            </span>
-          </div>
+      {loadingPatients ? (
+        <div className="flex flex-col items-center justify-center py-20 text-stone-400">
+             <div className="animate-spin mb-4"><Activity /></div>
+             <p>Consulting the archives...</p>
         </div>
-
-        {/* Patients List */}
-        {patients.length === 0 ? (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
-            <User className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Patients Found</h3>
-            <p className="text-gray-600">No appointments found for this practitioner.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {patients.map((patient) => (
-              <div
-                key={patient.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200"
-              >
-                {/* Patient Header */}
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{patient.name}</h3>
-                  </div>
+      ) : patientsError ? (
+        <div className="p-6 bg-red-50 text-red-800 rounded-xl border border-red-100 flex items-center gap-3">
+             <Activity /> {patientsError}
+        </div>
+      ) : patients.length === 0 ? (
+        <GlassCard className="py-20 text-center">
+            <User className="mx-auto h-16 w-16 text-stone-300 mb-4" />
+            <h3 className="text-xl font-bold text-stone-700">No Patients Found</h3>
+        </GlassCard>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {patients.map((patient, index) => (
+            <GlassCard key={patient.id} delay={index * 0.05} className="p-6 group hover:border-emerald-500/50 transition-all cursor-pointer">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-emerald-100 to-stone-100 flex items-center justify-center text-emerald-800 font-bold text-lg shadow-inner">
+                  {patient.name[0]}
                 </div>
-
-                {/* Email */}
-                {patient.email !== 'No email' && (
-                  <div className="flex items-center text-sm text-gray-600 mb-6">
-                    <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                    <span>{patient.email}</span>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                {/* <div className="flex gap-2">
-                  <button className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm font-medium">
-                    View Profile
-                  </button>
-                  <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm font-medium">
-                    Appointments
-                  </button>
-                </div> */}
+                <div>
+                  <h3 className="font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">{patient.name}</h3>
+                  <p className="text-xs text-stone-500 font-medium">{patient.id.slice(-6)}</p>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ✅ FIXED Therapies Section with proper Array check and Method 1 implementation
-  const renderTherapies = () => {
-    if (loadingTherapies) {
-      return (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Therapies</h1>
-            <button 
-              onClick={() => {
-                window.location.href = "/Add-therapy";
-              }}
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              <Plus size={20} /> Create Therapy
-            </button>
-          </div>
-          <p className="text-center py-20 text-gray-500">Loading therapies...</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Therapies</h1>
-          <button 
-            onClick={() => {
-              window.location.href = "/Add-therapy";
-            }}
-            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-          >
-            <Plus size={20} /> Create Therapy
-          </button>
-        </div>
-
-        {/* ✅ FIXED: Added Array.isArray() check to prevent map error */}
-        {!therapiesList || !Array.isArray(therapiesList) || therapiesList.length === 0 ? (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
-            <Heart className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">You don't have any therapy</h3>
-            <p className="text-gray-600">Start by creating your first therapy session.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {therapiesList.map((therapy) => (
-              <div
-                key={therapy._id}
-                className="bg-white rounded-2xl p-6 shadow-md border border-gray-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105"
-              >
-                <h2 className="text-xl font-bold text-gray-900 mb-2">{therapy.name}</h2>
-                <p className="text-gray-500 text-sm mb-4">{therapy.description}</p>
-
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-400 font-medium">Code:</span>
-                  <span className="font-medium text-gray-900">{therapy.code}</span>
-                </div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-400 font-medium flex items-center gap-1">
-                    <Clock size={14} /> Duration
-                  </span>
-                  <span className="font-medium text-gray-900">{therapy.duration} min</span>
-                </div>
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-gray-400 font-medium flex items-center gap-1">
-                    <Star size={14} /> Price
-                  </span>
-                  <span className="font-medium text-gray-900">${therapy.price}</span>
-                </div>
-                {therapy.patients !== undefined && (
-                  <p className="text-gray-500 text-sm mb-4">{therapy.patients} patients scheduled</p>
-                )}
+              <div className="flex items-center gap-2 text-sm text-stone-600 bg-stone-50 p-3 rounded-lg">
+                <Mail size={14} className="text-amber-600" />
+                <span className="truncate">{patient.email}</span>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'patients': return renderPatients();
-      case 'therapies': return renderTherapies();
-      case 'reports': return <div className="text-gray-500 py-20 text-center">Reports Section Coming Soon...</div>;
-      default: return renderDashboard();
-    }
-  };
-
-  return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="w-72 bg-white border-r border-gray-200 flex flex-col py-6 px-4 space-y-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-          <a href="/" className="hover:text-emerald-600 transition-colors">AyurSutra</a>
-        </h2>
-        <div className="flex flex-col gap-4">
-          {sidebarItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => {
-                if (item.id === "logout") {
-                  handleLogout();
-                } else {
-                  setActiveTab(item.id);
-                }
-              }}
-              className={`flex items-center gap-4 px-4 py-3 rounded-xl font-medium transition-colors duration-200 w-full text-left ${
-                activeTab === item.id ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <item.icon size={20} />
-              {item.label}
-            </button>
+              <div className="mt-4 flex justify-end">
+                <button className="w-8 h-8 rounded-full bg-stone-900 text-white flex items-center justify-center hover:bg-emerald-600 transition-colors shadow-lg">
+                    <ArrowRight size={14} />
+                </button>
+              </div>
+            </GlassCard>
           ))}
         </div>
+      )}
+    </div>
+  );
+
+  const renderTherapies = () => (
+    <div className="max-w-6xl mx-auto">
+       <SectionHeader 
+        title="Therapy Menu" 
+        subtitle="Manage treatments and pricing" 
+        action={
+            <button 
+                onClick={() => window.location.href = "/Add-therapy"}
+                className="bg-emerald-900 text-white px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-lg hover:bg-emerald-800 transition-all hover:scale-105"
+            >
+                <Plus size={18} /> Add New Therapy
+            </button>
+        }
+      />
+
+      {loadingTherapies ? (
+         <div className="text-center py-20 text-stone-400">Loading therapies...</div>
+      ) : !therapiesList || therapiesList.length === 0 ? (
+        <GlassCard className="py-20 text-center">
+            <Heart className="mx-auto h-16 w-16 text-stone-300 mb-4" />
+            <h3 className="text-xl font-bold text-stone-700">No Therapies Listed</h3>
+        </GlassCard>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {therapiesList.map((therapy, i) => (
+            <GlassCard key={therapy._id} delay={i * 0.05} className="flex flex-col h-full hover:shadow-xl hover:border-amber-500/30 transition-all">
+                <div className="p-6 flex-1">
+                    <div className="flex justify-between items-start mb-4">
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border border-emerald-200">
+                            {therapy.code || "AYUR"}
+                        </span>
+                        <span className="font-serif font-bold text-xl text-stone-800">${therapy.price}</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 serif mb-2">{therapy.name}</h3>
+                    <p className="text-sm text-stone-500 leading-relaxed mb-4 line-clamp-3">{therapy.description}</p>
+                </div>
+                <div className="p-4 bg-stone-50/50 border-t border-stone-100 flex items-center justify-between text-sm font-medium text-stone-600">
+                    <div className="flex items-center gap-1"><Clock size={14} className="text-amber-600"/> {therapy.duration} mins</div>
+                    <div className="flex items-center gap-1"><Users size={14}/> {therapy.patients || 0} active</div>
+                </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // --- MAIN LAYOUT ---
+  return (
+    <div className="relative min-h-screen bg-[#F5F5F4] text-gray-900 selection:bg-emerald-200 selection:text-emerald-900 overflow-hidden">
+      <GlobalStyles />
+      
+      {/* Background Texture (Subtle) */}
+      <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none mix-blend-multiply" 
+           style={{backgroundImage: `url("https://www.transparenttextures.com/patterns/cubes.png")`}}>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-8">
-        {renderContent()}
+      <div className="flex h-screen relative z-10">
+        
+        {/* --- SIDEBAR (Floating Glass) --- */}
+        <aside className="w-20 lg:w-72 hidden md:flex flex-col py-8 px-4 lg:px-6 h-full">
+            {/* Logo */}
+            <div className="flex items-center gap-3 mb-12 pl-2">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-900 to-emerald-700 flex items-center justify-center text-white shadow-lg shadow-emerald-900/20">
+                    <Leaf size={20} fill="currentColor" />
+                </div>
+                <span className="text-2xl font-bold tracking-tight serif hidden lg:block text-stone-900">
+                    Ayur<span className="text-emerald-700">Sutra</span>
+                </span>
+            </div>
+
+            {/* Nav Menu */}
+            <nav className="flex-1 space-y-2">
+                {sidebarItems.map(item => (
+                    <button
+                        key={item.id}
+                        onClick={() => setActiveTab(item.id)}
+                        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden ${
+                            activeTab === item.id 
+                            ? 'bg-white shadow-md text-emerald-900' 
+                            : 'text-stone-500 hover:bg-white/50 hover:text-stone-800'
+                        }`}
+                    >
+                        {activeTab === item.id && (
+                            <motion.div layoutId="activeTab" className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-600 rounded-l-xl" />
+                        )}
+                        <item.icon size={22} className={activeTab === item.id ? "text-emerald-600" : "group-hover:scale-110 transition-transform"} />
+                        <span className="font-bold text-sm hidden lg:block">{item.label}</span>
+                    </button>
+                ))}
+            </nav>
+
+            {/* Profile / Logout */}
+            <div className="mt-auto pt-6 border-t border-stone-200/60">
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-red-600 transition-colors">
+                    <LogOut size={20} />
+                    <span className="font-bold text-sm hidden lg:block">Sign Out</span>
+                </button>
+            </div>
+        </aside>
+
+        {/* --- MAIN CONTENT AREA --- */}
+        <main className="flex-1 h-full overflow-y-auto overflow-x-hidden">
+            {/* Top Bar (Mobile Toggle + Breadcrumbs) */}
+            <div className="sticky top-0 z-20 bg-[#F5F5F4]/80 backdrop-blur-md px-8 py-6 flex justify-between items-center md:hidden">
+                <div className="flex items-center gap-2">
+                    <Leaf className="text-emerald-800"/>
+                    <span className="font-bold serif text-lg">AyurSutra</span>
+                </div>
+                {/* Mobile Menu Toggle would go here */}
+            </div>
+
+            <div className="p-6 lg:p-10 pb-20">
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={activeTab}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3 }}
+                    >
+                        {activeTab === 'patients' ? renderPatients() :
+                         activeTab === 'therapies' ? renderTherapies() :
+                         activeTab === 'reports' ? (
+                            <div className="flex flex-col items-center justify-center h-[60vh] text-stone-400">
+                                <BarChart3 size={48} className="mb-4 opacity-50"/>
+                                <h3 className="text-xl serif font-bold text-stone-600">Analytics Module</h3>
+                                <p>Coming in the next update.</p>
+                            </div>
+                         ) : renderDashboard()}
+                    </motion.div>
+                </AnimatePresence>
+            </div>
+        </main>
+
       </div>
     </div>
   );

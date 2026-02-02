@@ -1,8 +1,69 @@
 import React, { useState, useEffect, useReducer, useMemo, useCallback, memo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, Cell } from 'recharts';
-import { Heart, Activity, Brain, Moon, Thermometer, Droplets, Utensils, Clock, Bell, BellOff, TrendingUp, Award, AlertTriangle, CheckCircle, Settings, Download, Calendar, Zap, Target, MessageCircle, Shield, Smartphone } from 'lucide-react';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
+  ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar 
+} from 'recharts';
+import { 
+  Heart, Activity, Brain, Moon, Thermometer, TrendingUp, Award, 
+  AlertTriangle, Settings, Download, Zap, Target, Shield, CheckCircle2, 
+  Leaf, Droplets, ArrowRight, LayoutDashboard, PlusCircle,Sparkles
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// Advanced Health Data Reducer
+// --- 1. Global Styles & Theme ---
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+    
+    :root {
+      --color-bg: #F5F5F4;
+      --color-text-main: #1C1917;
+      --color-primary: #064E3B;
+      --color-accent: #D97706;
+    }
+
+    body { 
+      font-family: 'Manrope', sans-serif; 
+      background-color: var(--color-bg);
+      color: var(--color-text-main);
+    }
+    
+    .serif { font-family: 'Playfair Display', serif; }
+
+    /* Custom Range Slider Styling */
+    input[type=range] {
+      height: 6px;
+      border-radius: 5px;
+      background: #e5e7eb;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #059669;
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+  `}</style>
+);
+
+// --- 2. Reusable UI Components ---
+const GlassCard = ({ children, className = "", delay = 0 }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5, delay, type: "spring", stiffness: 50 }}
+    className={`bg-white/60 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl ${className}`}
+  >
+    {children}
+  </motion.div>
+);
+
+// --- 3. Logic & Reducers (Kept from your original code) ---
 const healthReducer = (state, action) => {
   switch (action.type) {
     case 'ADD_HEALTH_ENTRY':
@@ -12,7 +73,7 @@ const healthReducer = (state, action) => {
         timestamp: new Date().toISOString(),
         aiScore: calculateHealthScore(action.payload, state.entries)
       };
-      const updatedEntries = [...state.entries, newEntry].slice(-90); // Keep last 90 days
+      const updatedEntries = [...state.entries, newEntry].slice(-90);
       return {
         ...state,
         entries: updatedEntries,
@@ -20,34 +81,20 @@ const healthReducer = (state, action) => {
         lastUpdate: new Date().toISOString(),
         streak: calculateStreak(updatedEntries)
       };
-    case 'SET_PREFERENCES':
-      return { ...state, preferences: { ...state.preferences, ...action.payload } };
     case 'ADD_NOTIFICATION':
       return { ...state, notifications: [action.payload, ...state.notifications.slice(0, 9)] };
     case 'DISMISS_NOTIFICATION':
       return { ...state, notifications: state.notifications.filter(n => n.id !== action.payload) };
-    case 'LOAD_DATA':
-      return { ...action.payload };
     default:
       return state;
   }
 };
 
-// Advanced AI Health Scoring Algorithm
 const calculateHealthScore = (data, historicalData = []) => {
-  const weights = {
-    physical: 0.25,
-    sleep: 0.20,
-    mental: 0.20,
-    vitals: 0.15,
-    lifestyle: 0.10,
-    trend: 0.10
-  };
-
+  const weights = { physical: 0.25, sleep: 0.20, mental: 0.20, vitals: 0.15, lifestyle: 0.10, trend: 0.10 };
   const physicalScore = Math.max(0, 100 - (data.pain * 8));
   const sleepScore = data.sleepHours >= 7 ? 100 : Math.max(0, data.sleepHours * 14.3);
   const mentalScore = (data.mood * 20);
-  
   const vitalScore = calculateVitalScore(data.vitals);
   const lifestyleScore = calculateLifestyleScore(data.lifestyle);
   const trendScore = calculateTrendAnalysis(historicalData);
@@ -66,980 +113,474 @@ const calculateHealthScore = (data, historicalData = []) => {
 const calculateVitalScore = (vitals) => {
   if (!vitals) return 70;
   let score = 100;
-  
-  // Blood Pressure (120/80 optimal)
   if (vitals.systolic > 140 || vitals.diastolic > 90) score -= 20;
   else if (vitals.systolic > 130 || vitals.diastolic > 85) score -= 10;
-  
-  // Heart Rate (60-100 optimal)
   if (vitals.heartRate < 60 || vitals.heartRate > 100) score -= 15;
-  
-  // Temperature (98.6°F optimal)
   const tempDiff = Math.abs(vitals.temperature - 98.6);
   if (tempDiff > 2) score -= 20;
   else if (tempDiff > 1) score -= 10;
-  
   return Math.max(0, score);
 };
 
 const calculateLifestyleScore = (lifestyle) => {
   if (!lifestyle) return 60;
   let score = 0;
-  
   score += lifestyle.hydration >= 8 ? 25 : (lifestyle.hydration * 3);
   score += lifestyle.exercise >= 30 ? 25 : (lifestyle.exercise * 0.8);
   score += lifestyle.screenTime <= 6 ? 25 : Math.max(0, 25 - (lifestyle.screenTime - 6) * 3);
   score += lifestyle.socialInteraction >= 3 ? 25 : (lifestyle.socialInteraction * 8);
-  
   return Math.min(100, score);
 };
 
 const calculateTrendAnalysis = (entries) => {
   if (entries.length < 7) return 70;
-  
   const recent = entries.slice(-7);
   const older = entries.slice(-14, -7);
-  
   if (older.length === 0) return 70;
-  
   const recentAvg = recent.reduce((sum, entry) => sum + (entry.aiScore || 70), 0) / recent.length;
   const olderAvg = older.reduce((sum, entry) => sum + (entry.aiScore || 70), 0) / older.length;
-  
   const improvement = recentAvg - olderAvg;
   return Math.max(0, Math.min(100, 70 + improvement * 2));
 };
 
 const calculateStreak = (entries) => {
   if (entries.length === 0) return 0;
-  
   let streak = 0;
   const today = new Date();
-  
   for (let i = entries.length - 1; i >= 0; i--) {
     const entryDate = new Date(entries[i].timestamp);
     const daysDiff = Math.floor((today - entryDate) / (1000 * 60 * 60 * 24));
-    
-    if (daysDiff === streak) {
-      streak++;
-    } else {
-      break;
-    }
+    if (daysDiff === streak) streak++; else break;
   }
-  
   return streak;
 };
 
-// AI Insights Generation
-const generateAIInsights = (userData, trends, preferences) => {
+const generateAIInsights = (userData, trends) => {
   const insights = [];
   const score = userData.currentScore || 70;
   
-  // Health Prediction
   if (score >= 90) {
-    insights.push({
-      type: 'achievement',
-      title: 'Peak Performance Mode',
-      message: 'Your health metrics indicate optimal wellness. Maintain your current routine for continued excellence.',
-      confidence: 95,
-      priority: 'high'
-    });
+    insights.push({ type: 'achievement', title: 'Peak Vitality', message: 'Your Ojas (vitality) levels are exceptional.', confidence: 95, priority: 'high' });
   } else if (score < 60) {
-    insights.push({
-      type: 'alert',
-      title: 'Health Attention Needed',
-      message: 'Several metrics suggest intervention may be beneficial. Consider consulting with healthcare providers.',
-      confidence: 88,
-      priority: 'urgent'
-    });
+    insights.push({ type: 'alert', title: 'Dosha Imbalance', message: 'Metrics suggest a Vata-Pitta imbalance. Consult a Vaidya.', confidence: 88, priority: 'urgent' });
   }
   
-  // Sleep Analysis
   const avgSleep = trends.reduce((sum, entry) => sum + (entry.sleepHours || 7), 0) / Math.max(trends.length, 1);
   if (avgSleep < 7) {
-    insights.push({
-      type: 'recommendation',
-      title: 'Sleep Optimization Needed',
-      message: `Your average sleep of ${avgSleep.toFixed(1)} hours is below optimal. Aim for 7-9 hours nightly.`,
-      confidence: 92,
-      priority: 'medium'
-    });
-  }
-  
-  // Pain Pattern Recognition
-  const painEntries = trends.filter(entry => entry.pain > 5);
-  if (painEntries.length >= 3) {
-    insights.push({
-      type: 'pattern',
-      title: 'Pain Pattern Detected',
-      message: 'Recurring pain levels above 5/10 detected. Consider tracking triggers and discussing with healthcare provider.',
-      confidence: 85,
-      priority: 'medium'
-    });
+    insights.push({ type: 'recommendation', title: 'Nidra (Sleep) Deficit', message: `Average sleep is ${avgSleep.toFixed(1)}h. Try Ashwagandha milk before bed.`, confidence: 92, priority: 'medium' });
   }
   
   return insights;
 };
 
-// Notification System
+// --- 4. Sub-Components (Styled) ---
+
 const NotificationBadge = memo(({ notification, onDismiss }) => {
-  const [isVisible, setIsVisible] = useState(true);
-  
-  const getBadgeStyle = () => {
+  const getStyle = () => {
     switch (notification.priority) {
-      case 'urgent': return 'bg-red-500 border-red-400 animate-pulse shadow-red-500/30';
-      case 'high': return 'bg-amber-500 border-amber-400 shadow-amber-500/30';
-      default: return 'bg-blue-500 border-blue-400 shadow-blue-500/30';
+      case 'urgent': return 'bg-red-50 text-red-800 border-red-100';
+      case 'high': return 'bg-amber-50 text-amber-800 border-amber-100';
+      default: return 'bg-emerald-50 text-emerald-800 border-emerald-100';
     }
   };
-  
-  const getIcon = () => {
-    switch (notification.type) {
-      case 'alert': return <AlertTriangle className="w-4 h-4" />;
-      case 'achievement': return <Award className="w-4 h-4" />;
-      default: return <Bell className="w-4 h-4" />;
-    }
-  };
-  
-  if (!isVisible) return null;
   
   return (
-    <div className={`border-2 ${getBadgeStyle()} text-white p-3 rounded-lg shadow-lg transform transition-all duration-300 hover:scale-105`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {getIcon()}
-          <div>
-            <h4 className="font-semibold text-sm">{notification.title}</h4>
-            <p className="text-xs opacity-90">{notification.message}</p>
-            {notification.confidence && (
-              <div className="text-xs mt-1 opacity-75">
-                Confidence: {notification.confidence}%
-              </div>
-            )}
-          </div>
+    <motion.div 
+      initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
+      className={`p-4 rounded-xl border mb-3 flex justify-between items-start ${getStyle()}`}
+    >
+      <div className="flex gap-3">
+        {notification.priority === 'urgent' ? <AlertTriangle size={18} /> : <Zap size={18} />}
+        <div>
+          <h4 className="font-bold text-sm serif">{notification.title}</h4>
+          <p className="text-xs opacity-90 mt-1">{notification.message}</p>
         </div>
-        <button
-          onClick={() => {
-            setIsVisible(false);
-            setTimeout(() => onDismiss(notification.id), 300);
-          }}
-          className="text-white/70 hover:text-white transition-colors text-lg leading-none"
-        >
-          ×
-        </button>
       </div>
-    </div>
+      <button onClick={() => onDismiss(notification.id)} className="text-current opacity-50 hover:opacity-100">×</button>
+    </motion.div>
   );
 });
 
-// Advanced Health Form Component
 const HealthAssessmentForm = memo(({ onSubmit, isSubmitting }) => {
   const [formData, setFormData] = useState({
-    pain: 0,
-    sleepHours: 7,
-    sleepQuality: 3,
-    mood: 3,
-    anxiety: 1,
-    vitals: {
-      systolic: 120,
-      diastolic: 80,
-      heartRate: 72,
-      temperature: 98.6,
-      oxygenSat: 98
-    },
-    lifestyle: {
-      hydration: 8,
-      exercise: 30,
-      screenTime: 6,
-      socialInteraction: 3
-    },
+    pain: 0, sleepHours: 7, sleepQuality: 3, mood: 3, anxiety: 1,
+    vitals: { systolic: 120, diastolic: 80, heartRate: 72, temperature: 98.6 },
+    lifestyle: { hydration: 8, exercise: 30, screenTime: 6, socialInteraction: 3 },
     notes: ''
   });
   
   const [activeTab, setActiveTab] = useState('physical');
-  
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
-  
   const tabs = [
-    { id: 'physical', label: 'Physical', icon: <Heart className="w-4 h-4" /> },
-    { id: 'sleep', label: 'Sleep', icon: <Moon className="w-4 h-4" /> },
-    { id: 'mental', label: 'Mental', icon: <Brain className="w-4 h-4" /> },
-    { id: 'vitals', label: 'Vitals', icon: <Activity className="w-4 h-4" /> },
-    { id: 'lifestyle', label: 'Lifestyle', icon: <Target className="w-4 h-4" /> }
+    { id: 'physical', label: 'Body', icon: Heart },
+    { id: 'sleep', label: 'Rest', icon: Moon },
+    { id: 'mental', label: 'Mind', icon: Brain },
+    { id: 'vitals', label: 'Vitals', icon: Activity },
+    { id: 'lifestyle', label: 'Habits', icon: Target }
   ];
   
+  const StyledSlider = ({ label, value, min, max, step=1, onChange, unit="" }) => (
+    <div className="bg-white/50 p-4 rounded-xl border border-stone-100">
+      <div className="flex justify-between mb-2">
+        <label className="text-sm font-bold text-stone-700">{label}</label>
+        <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-2 rounded-md">{value} {unit}</span>
+      </div>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={onChange} className="w-full accent-emerald-600" />
+    </div>
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">Health Assessment</h2>
-      
-      {/* Tab Navigation */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              activeTab === tab.id 
-                ? 'bg-blue-500 text-white shadow-md' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+    <GlassCard className="p-0 overflow-hidden">
+      <div className="bg-emerald-900 p-6 text-white">
+        <h2 className="text-2xl font-bold serif flex items-center gap-2"><Leaf size={20}/> Daily Check-in</h2>
+        <p className="text-emerald-200/80 text-sm">Track your Prakriti and Vikriti balance.</p>
       </div>
-      
-      {/* Form Content */}
-      <div className="space-y-6">
-        {activeTab === 'physical' && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Pain Level: {formData.pain}/10
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                value={formData.pain}
-                onChange={(e) => setFormData({...formData, pain: parseInt(e.target.value)})}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>No Pain</span>
-                <span>Severe Pain</span>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {activeTab === 'sleep' && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Sleep Hours: {formData.sleepHours}h
-              </label>
-              <input
-                type="range"
-                min="3"
-                max="12"
-                step="0.5"
-                value={formData.sleepHours}
-                onChange={(e) => setFormData({...formData, sleepHours: parseFloat(e.target.value)})}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Sleep Quality: {formData.sleepQuality}/5
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="5"
-                value={formData.sleepQuality}
-                onChange={(e) => setFormData({...formData, sleepQuality: parseInt(e.target.value)})}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-            </div>
-          </div>
-        )}
-        
-        {activeTab === 'mental' && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Mood: {formData.mood}/5
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="5"
-                value={formData.mood}
-                onChange={(e) => setFormData({...formData, mood: parseInt(e.target.value)})}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Anxiety Level: {formData.anxiety}/5
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="5"
-                value={formData.anxiety}
-                onChange={(e) => setFormData({...formData, anxiety: parseInt(e.target.value)})}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-            </div>
-          </div>
-        )}
-        
-        {activeTab === 'vitals' && (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700">Systolic BP</label>
-              <input
-                type="number"
-                value={formData.vitals.systolic}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  vitals: {...formData.vitals, systolic: parseInt(e.target.value)}
-                })}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700">Diastolic BP</label>
-              <input
-                type="number"
-                value={formData.vitals.diastolic}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  vitals: {...formData.vitals, diastolic: parseInt(e.target.value)}
-                })}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700">Heart Rate</label>
-              <input
-                type="number"
-                value={formData.vitals.heartRate}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  vitals: {...formData.vitals, heartRate: parseInt(e.target.value)}
-                })}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700">Temperature °F</label>
-              <input
-                type="number"
-                step="0.1"
-                value={formData.vitals.temperature}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  vitals: {...formData.vitals, temperature: parseFloat(e.target.value)}
-                })}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              />
-            </div>
-          </div>
-        )}
-        
-        {activeTab === 'lifestyle' && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Hydration (glasses): {formData.lifestyle.hydration}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="15"
-                value={formData.lifestyle.hydration}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  lifestyle: {...formData.lifestyle, hydration: parseInt(e.target.value)}
-                })}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Exercise (minutes): {formData.lifestyle.exercise}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="120"
-                step="5"
-                value={formData.lifestyle.exercise}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  lifestyle: {...formData.lifestyle, exercise: parseInt(e.target.value)}
-                })}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-            </div>
-          </div>
-        )}
-        
-        <div>
-          <label className="block text-sm font-medium mb-2 text-gray-700">Additional Notes</label>
-          <textarea
-            value={formData.notes}
-            onChange={(e) => setFormData({...formData, notes: e.target.value})}
-            placeholder="Any symptoms, observations, or additional context..."
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white h-20"
-          />
+
+      <div className="p-6">
+        <div className="flex flex-wrap gap-2 mb-8 p-1 bg-stone-100 rounded-xl">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                activeTab === tab.id ? 'bg-white text-emerald-800 shadow-sm' : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              <tab.icon size={16} /> <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          ))}
         </div>
+        
+        <div className="space-y-6 min-h-[300px]">
+          {activeTab === 'physical' && (
+            <div className="space-y-4">
+              <StyledSlider label="Physical Discomfort / Pain" value={formData.pain} min="0" max="10" onChange={(e) => setFormData({...formData, pain: parseInt(e.target.value)})} unit="/ 10" />
+            </div>
+          )}
+          {activeTab === 'sleep' && (
+            <div className="space-y-4">
+              <StyledSlider label="Hours Slept" value={formData.sleepHours} min="3" max="12" step="0.5" onChange={(e) => setFormData({...formData, sleepHours: parseFloat(e.target.value)})} unit="hrs" />
+              <StyledSlider label="Sleep Quality" value={formData.sleepQuality} min="1" max="5" onChange={(e) => setFormData({...formData, sleepQuality: parseInt(e.target.value)})} unit="/ 5" />
+            </div>
+          )}
+          {activeTab === 'mental' && (
+            <div className="space-y-4">
+              <StyledSlider label="Current Mood" value={formData.mood} min="1" max="5" onChange={(e) => setFormData({...formData, mood: parseInt(e.target.value)})} unit="/ 5" />
+              <StyledSlider label="Anxiety / Stress" value={formData.anxiety} min="1" max="5" onChange={(e) => setFormData({...formData, anxiety: parseInt(e.target.value)})} unit="/ 5" />
+            </div>
+          )}
+          {activeTab === 'vitals' && (
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                  { l: "Systolic BP", k: "systolic" }, { l: "Diastolic BP", k: "diastolic" },
+                  { l: "Heart Rate", k: "heartRate" }, { l: "Temp (°F)", k: "temperature" }
+              ].map((f) => (
+                  <div key={f.k} className="bg-white/50 p-3 rounded-xl border border-stone-100">
+                    <label className="text-xs font-bold text-stone-500 block mb-1">{f.l}</label>
+                    <input type="number" value={formData.vitals[f.k]} 
+                      onChange={(e) => setFormData({...formData, vitals: {...formData.vitals, [f.k]: parseFloat(e.target.value)}})}
+                      className="w-full bg-transparent font-bold text-stone-800 focus:outline-none border-b border-stone-200 focus:border-emerald-500"
+                    />
+                  </div>
+              ))}
+            </div>
+          )}
+          {activeTab === 'lifestyle' && (
+             <div className="space-y-4">
+               <StyledSlider label="Hydration (Glasses)" value={formData.lifestyle.hydration} min="0" max="15" onChange={(e) => setFormData({...formData, lifestyle: {...formData.lifestyle, hydration: parseInt(e.target.value)}})} unit="" />
+               <StyledSlider label="Yoga / Exercise (Mins)" value={formData.lifestyle.exercise} min="0" max="120" step="10" onChange={(e) => setFormData({...formData, lifestyle: {...formData.lifestyle, exercise: parseInt(e.target.value)}})} unit="min" />
+             </div>
+          )}
+        </div>
+
+        <button onClick={(e) => { e.preventDefault(); onSubmit(formData); }} disabled={isSubmitting}
+          className="w-full mt-6 bg-emerald-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-800 transition-all shadow-lg hover:shadow-emerald-900/20 disabled:opacity-70"
+        >
+          {isSubmitting ? <Loader2 className="animate-spin"/> : <Zap size={20} />}
+          {isSubmitting ? "Analyzing..." : "Analyze Health Data"}
+        </button>
       </div>
-      
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full mt-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
-      >
-        {isSubmitting ? (
-          <>
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-            Processing...
-          </>
-        ) : (
-          <>
-            <Zap className="w-5 h-5" />
-            Analyze Health Data
-          </>
-        )}
-      </button>
-    </form>
+    </GlassCard>
   );
 });
 
-// Dashboard Analytics Components
-const HealthScoreGauge = memo(({ score, size = 150 }) => {
-  const getScoreColor = (score) => {
-    if (score >= 90) return '#10B981'; // Green
-    if (score >= 80) return '#84CC16'; // Light Green
-    if (score >= 70) return '#F59E0B'; // Yellow
-    if (score >= 60) return '#F97316'; // Orange
-    return '#EF4444'; // Red
-  };
-  
-  const getScoreLabel = (score) => {
-    if (score >= 90) return 'Optimal';
-    if (score >= 80) return 'Excellent';
-    if (score >= 70) return 'Good';
-    if (score >= 60) return 'Fair';
-    if (score >= 40) return 'Concerning';
-    return 'Critical';
-  };
-  
+const HealthScoreGauge = memo(({ score, size = 180 }) => {
+  const getScoreColor = (s) => s >= 90 ? '#059669' : s >= 70 ? '#D97706' : '#EF4444';
   const circumference = 2 * Math.PI * 45;
   const strokeDasharray = `${(score / 100) * circumference} ${circumference}`;
   
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg className="transform -rotate-90" width={size} height={size}>
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r="45"
-            stroke="#E5E7EB"
-            strokeWidth="8"
-            fill="transparent"
-          />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r="45"
-            stroke={getScoreColor(score)}
-            strokeWidth="8"
-            fill="transparent"
-            strokeDasharray={strokeDasharray}
-            strokeLinecap="round"
-            className="transition-all duration-1000 ease-out"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold text-gray-800">{score}</span>
-          <span className="text-xs text-gray-600">{getScoreLabel(score)}</span>
-        </div>
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+       <svg className="transform -rotate-90" width={size} height={size}>
+          <circle cx={size/2} cy={size/2} r="45" stroke="#E7E5E4" strokeWidth="8" fill="transparent" />
+          <circle cx={size/2} cy={size/2} r="45" stroke={getScoreColor(score)} strokeWidth="8" fill="transparent"
+            strokeDasharray={strokeDasharray} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
+       </svg>
+       <div className="absolute inset-0 flex flex-col items-center justify-center">
+         <span className="text-4xl font-bold serif text-stone-800">{score}</span>
+         <span className="text-xs font-bold uppercase tracking-widest text-stone-500">Ojas Score</span>
+       </div>
+    </div>
+  );
+});
+
+const TrendChart = memo(({ data, metric = 'aiScore', title, color="#059669" }) => {
+  const chartData = useMemo(() => data.slice(-30).map((e, i) => ({ day: i + 1, value: e[metric] || 0 })), [data, metric]);
+  return (
+    <GlassCard className="p-6">
+      <h3 className="font-bold text-stone-700 mb-4 serif">{title}</h3>
+      <div className="h-64 w-full">
+        <ResponsiveContainer>
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E7E5E4" />
+            <XAxis dataKey="day" stroke="#A8A29E" fontSize={10} tickLine={false} />
+            <YAxis stroke="#A8A29E" fontSize={10} tickLine={false} />
+            <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+            <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} dot={{r:0}} activeDot={{r:6, fill: color}} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
-    </div>
+    </GlassCard>
   );
 });
 
-const TrendChart = memo(({ data, metric = 'aiScore', title = 'Health Score Trend' }) => {
-  const chartData = useMemo(() => {
-    return data.slice(-30).map((entry, index) => ({
-      day: index + 1,
-      value: entry[metric] || 0,
-      date: new Date(entry.timestamp).toLocaleDateString()
-    }));
-  }, [data, metric]);
-  
-  return (
-    <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-      <h3 className="text-lg font-semibold mb-4 text-gray-800">{title}</h3>
-      <ResponsiveContainer width="100%" height={250}>
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-          <XAxis 
-            dataKey="day" 
-            stroke="#6B7280"
-            fontSize={12}
-          />
-          <YAxis 
-            stroke="#6B7280"
-            fontSize={12}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
-              color: '#374151'
-            }}
-            formatter={(value) => [value, metric]}
-            labelFormatter={(label) => `Day ${label}`}
-          />
-          <Line
-            type="monotone"
-            dataKey="value"
-            stroke="#3B82F6"
-            strokeWidth={3}
-            dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
-            activeDot={{ r: 6 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-});
-
-const RadarHealthChart = memo(({ data }) => {
-  const latestEntry = data[data.length - 1];
-  if (!latestEntry) return null;
-  
-  const radarData = [
-    { subject: 'Physical', A: Math.max(0, 100 - (latestEntry.pain * 8)), fullMark: 100 },
-    { subject: 'Sleep', A: latestEntry.sleepHours >= 7 ? 100 : latestEntry.sleepHours * 14.3, fullMark: 100 },
-    { subject: 'Mental', A: (latestEntry.mood * 20), fullMark: 100 },
-    { subject: 'Hydration', A: latestEntry.lifestyle?.hydration * 12.5 || 60, fullMark: 100 },
-    { subject: 'Exercise', A: Math.min(100, (latestEntry.lifestyle?.exercise || 0) * 3.33), fullMark: 100 },
-    { subject: 'Vitals', A: calculateVitalScore(latestEntry.vitals), fullMark: 100 }
-  ];
-  
-  return (
-    <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-      <h3 className="text-lg font-semibold mb-4 text-gray-800">Health Dimensions</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <RadarChart data={radarData}>
-          <PolarGrid stroke="#E5E7EB" />
-          <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12, fill: '#6B7280' }} />
-          <PolarRadiusAxis 
-            angle={30} 
-            domain={[0, 100]} 
-            tick={{ fontSize: 10, fill: '#6B7280' }}
-          />
-          <Radar
-            name="Current"
-            dataKey="A"
-            stroke="#3B82F6"
-            fill="#3B82F6"
-            fillOpacity={0.1}
-            strokeWidth={2}
-          />
-        </RadarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-});
-
-// Main App Component
+// --- 5. Main Component ---
 const HealthInfo = () => {
-  const initialState = {
-    entries: [],
-    currentScore: 0,
-    streak: 0,
-    lastUpdate: null,
-    notifications: [],
-    preferences: {
-      notificationsEnabled: true,
-      language: 'en'
-    }
-  };
-  
+  const initialState = { entries: [], currentScore: 0, streak: 0, lastUpdate: null, notifications: [], preferences: { notificationsEnabled: true } };
   const [state, dispatch] = useReducer(healthReducer, initialState);
   const [activeView, setActiveView] = useState('dashboard');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
-  // Generate AI insights
-  const aiInsights = useMemo(() => {
-    return generateAIInsights(state, state.entries, state.preferences);
-  }, [state.entries, state.currentScore]);
+  const aiInsights = useMemo(() => generateAIInsights(state, state.entries), [state.entries, state.currentScore]);
   
-  // Auto-generate notifications based on AI insights
   useEffect(() => {
     aiInsights.forEach(insight => {
       if (insight.priority === 'urgent' && !state.notifications.find(n => n.title === insight.title)) {
-        dispatch({
-          type: 'ADD_NOTIFICATION',
-          payload: {
-            id: Date.now() + Math.random(),
-            ...insight,
-            timestamp: new Date().toISOString()
-          }
-        });
+        dispatch({ type: 'ADD_NOTIFICATION', payload: { id: Date.now() + Math.random(), ...insight, timestamp: new Date().toISOString() } });
       }
     });
   }, [aiInsights]);
-  
+
   const handleHealthSubmit = useCallback(async (formData) => {
     setIsSubmitting(true);
-    
-    // Simulate AI processing
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
     dispatch({ type: 'ADD_HEALTH_ENTRY', payload: formData });
     setActiveView('dashboard');
     setIsSubmitting(false);
   }, []);
-  
-  const handleNotificationDismiss = useCallback((id) => {
-    dispatch({ type: 'DISMISS_NOTIFICATION', payload: id });
-  }, []);
-
-  const exportData = useCallback(() => {
-    const dataStr = JSON.stringify(state, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const exportFileDefaultName = `health-data-${new Date().toISOString().split('T')[0]}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
-  }, [state]);
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <Activity className="w-5 h-5" /> },
-    { id: 'assessment', label: 'Assessment', icon: <Heart className="w-5 h-5" /> },
-    { id: 'insights', label: 'AI Insights', icon: <Brain className="w-5 h-5" /> },
-    { id: 'trends', label: 'Trends', icon: <TrendingUp className="w-5 h-5" /> }
+    { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+    { id: 'assessment', label: 'Check-in', icon: PlusCircle },
+    { id: 'insights', label: 'AI Veda', icon: Brain },
+    { id: 'trends', label: 'History', icon: TrendingUp }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <div className="min-h-screen bg-[#F5F5F4] relative selection:bg-emerald-200 selection:text-emerald-900">
+      <GlobalStyles />
+      <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none mix-blend-multiply" 
+           style={{backgroundImage: `url("https://www.transparenttextures.com/patterns/cubes.png")`}}>
+      </div>
+      
+      <div className="relative z-10 container mx-auto px-4 py-8 max-w-6xl">
+        
         {/* Header */}
-        <header className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-3 rounded-xl shadow-lg">
-                <Zap className="w-8 h-8 text-white" />
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+           <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-tr from-emerald-800 to-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                <Brain size={24} />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">
-                  AI Health Intelligence
-                </h1>
-                <p className="text-gray-600">
-                  Advanced health monitoring & predictive analytics
-                </p>
+                <h1 className="text-3xl font-bold serif text-stone-900">AyurIntelligence</h1>
+                <p className="text-stone-500 font-medium">Holistic Health Monitoring</p>
               </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
+           </div>
+
+           <div className="flex items-center gap-3">
               {state.streak > 0 && (
-                <div className="flex items-center gap-2 bg-green-100 px-3 py-2 rounded-lg border border-green-200">
-                  <Award className="w-5 h-5 text-green-600" />
-                  <span className="text-sm font-medium text-green-800">
-                    {state.streak} day streak
-                  </span>
+                <div className="flex items-center gap-2 bg-amber-100 text-amber-800 px-4 py-2 rounded-full border border-amber-200 font-bold text-sm">
+                  <Award size={16} /> {state.streak} Day Streak
                 </div>
               )}
-              
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className="p-2 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors border border-gray-300"
-              >
-                <Settings className="w-5 h-5 text-gray-600" />
+              <button onClick={() => setShowSettings(true)} className="p-3 bg-white rounded-full shadow-sm text-stone-600 hover:text-emerald-800 hover:shadow-md transition-all">
+                <Settings size={20} />
               </button>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex flex-wrap gap-2 mb-6">
-            {navItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all shadow-sm ${
-                  activeView === item.id
-                    ? 'bg-blue-500 text-white shadow-md'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                }`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </nav>
-
-          {/* Notifications */}
-          {state.notifications.length > 0 && (
-            <div className="space-y-3 mb-6">
-              {state.notifications.slice(0, 3).map(notification => (
-                <NotificationBadge
-                  key={notification.id}
-                  notification={notification}
-                  onDismiss={handleNotificationDismiss}
-                />
-              ))}
-            </div>
-          )}
+           </div>
         </header>
+
+        {/* Navigation Tabs */}
+        <nav className="flex gap-2 mb-8 overflow-x-auto pb-2">
+          {navItems.map(item => (
+            <button key={item.id} onClick={() => setActiveView(item.id)}
+              className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all whitespace-nowrap ${
+                activeView === item.id 
+                ? 'bg-stone-900 text-white shadow-lg' 
+                : 'bg-white text-stone-500 hover:bg-stone-50 border border-stone-200'
+              }`}
+            >
+              <item.icon size={18} /> {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Notifications Area */}
+        <AnimatePresence>
+          {state.notifications.length > 0 && (
+             <div className="mb-8 grid md:grid-cols-2 gap-4">
+               {state.notifications.map(n => (
+                 <NotificationBadge key={n.id} notification={n} onDismiss={(id) => dispatch({ type: 'DISMISS_NOTIFICATION', payload: id })} />
+               ))}
+             </div>
+          )}
+        </AnimatePresence>
 
         {/* Main Content */}
         <main>
           {activeView === 'dashboard' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Health Score */}
-              <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200 flex flex-col items-center">
-                <h2 className="text-xl font-semibold mb-4 text-gray-800">
-                  Current Health Score
-                </h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              
+              {/* Left Column: Score */}
+              <GlassCard className="flex flex-col items-center justify-center p-8 text-center h-fit">
+                <h2 className="text-xl font-bold serif text-stone-800 mb-6">Current Ojas Score</h2>
                 <HealthScoreGauge score={state.currentScore} />
-                <div className="mt-4 text-center">
-                  <p className="text-sm text-gray-600">
-                    Last updated: {state.lastUpdate ? new Date(state.lastUpdate).toLocaleDateString() : 'Never'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Quick Stats */}
-              <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
-                  <div className="flex items-center gap-3">
-                    <Heart className="w-8 h-8 text-red-500" />
-                    <div>
-                      <p className="text-sm text-gray-600">Avg Pain</p>
-                      <p className="text-xl font-bold text-gray-800">
-                        {state.entries.length > 0 
-                          ? (state.entries.reduce((sum, e) => sum + e.pain, 0) / state.entries.length).toFixed(1)
-                          : '0.0'
-                        }
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
-                  <div className="flex items-center gap-3">
-                    <Moon className="w-8 h-8 text-blue-500" />
-                    <div>
-                      <p className="text-sm text-gray-600">Avg Sleep</p>
-                      <p className="text-xl font-bold text-gray-800">
-                        {state.entries.length > 0 
-                          ? (state.entries.reduce((sum, e) => sum + e.sleepHours, 0) / state.entries.length).toFixed(1) + 'h'
-                          : '0.0h'
-                        }
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
-                  <div className="flex items-center gap-3">
-                    <Brain className="w-8 h-8 text-purple-500" />
-                    <div>
-                      <p className="text-sm text-gray-600">Avg Mood</p>
-                      <p className="text-xl font-bold text-gray-800">
-                        {state.entries.length > 0 
-                          ? (state.entries.reduce((sum, e) => sum + e.mood, 0) / state.entries.length).toFixed(1)
-                          : '0.0'
-                        }
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="w-8 h-8 text-green-500" />
-                    <div>
-                      <p className="text-sm text-gray-600">Entries</p>
-                      <p className="text-xl font-bold text-gray-800">
-                        {state.entries.length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Charts */}
-              {state.entries.length > 0 && (
-                <>
-                  <div className="lg:col-span-2">
-                    <TrendChart data={state.entries} />
-                  </div>
-                  <div>
-                    <RadarHealthChart data={state.entries} />
-                  </div>
-                </>
-              )}
-
-              {/* Recent Insights */}
-              {aiInsights.length > 0 && (
-                <div className="lg:col-span-3 bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-                  <h3 className="text-lg font-semibold mb-4 text-gray-800 flex items-center gap-2">
-                    <Brain className="w-5 h-5" />
-                    AI Health Insights
-                  </h3>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {aiInsights.slice(0, 4).map((insight, index) => (
-                      <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                        <div className="flex items-start gap-3">
-                          {insight.type === 'achievement' && <Award className="w-5 h-5 text-yellow-500 mt-1" />}
-                          {insight.type === 'alert' && <AlertTriangle className="w-5 h-5 text-red-500 mt-1" />}
-                          {insight.type === 'recommendation' && <Target className="w-5 h-5 text-blue-500 mt-1" />}
-                          {insight.type === 'pattern' && <TrendingUp className="w-5 h-5 text-purple-500 mt-1" />}
-                          <div>
-                            <h4 className="font-semibold text-gray-800">{insight.title}</h4>
-                            <p className="text-sm text-gray-600 mt-1">{insight.message}</p>
-                            <div className="text-xs text-gray-500 mt-2">
-                              Confidence: {insight.confidence}%
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeView === 'assessment' && (
-            <HealthAssessmentForm onSubmit={handleHealthSubmit} isSubmitting={isSubmitting} />
-          )}
-
-          {activeView === 'insights' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-                <h2 className="text-2xl font-semibold mb-6 text-gray-800 flex items-center gap-3">
-                  <Brain className="w-8 h-8 text-purple-500" />
-                  Advanced AI Health Intelligence
-                </h2>
-                
-                {aiInsights.length > 0 ? (
-                  <div className="space-y-4">
-                    {aiInsights.map((insight, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-6 bg-gray-50">
-                        <div className="flex items-start gap-4">
-                          <div className="p-3 rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
-                            {insight.type === 'achievement' && <Award className="w-6 h-6 text-white" />}
-                            {insight.type === 'alert' && <AlertTriangle className="w-6 h-6 text-white" />}
-                            {insight.type === 'recommendation' && <Target className="w-6 h-6 text-white" />}
-                            {insight.type === 'pattern' && <TrendingUp className="w-6 h-6 text-white" />}
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                              {insight.title}
-                            </h3>
-                            <p className="text-gray-600 mb-3">
-                              {insight.message}
-                            </p>
-                            <div className="flex items-center gap-4 text-sm">
-                              <span className="flex items-center gap-1 text-gray-500">
-                                <Shield className="w-4 h-4" />
-                                Confidence: {insight.confidence}%
-                              </span>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                insight.priority === 'urgent' ? 'bg-red-100 text-red-800' :
-                                insight.priority === 'high' ? 'bg-amber-100 text-amber-800' :
-                                'bg-blue-100 text-blue-800'
-                              }`}>
-                                {insight.priority} priority
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <Brain className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-600 mb-2">
-                      No insights available yet
-                    </h3>
-                    <p className="text-gray-500">
-                      Complete a few health assessments to unlock AI-powered insights.
-                    </p>
-                  </div>
+                <p className="text-sm text-stone-400 mt-4 font-medium">
+                   Last Updated: {state.lastUpdate ? new Date(state.lastUpdate).toLocaleTimeString() : 'No Data'}
+                </p>
+                {state.entries.length === 0 && (
+                   <button onClick={() => setActiveView('assessment')} className="mt-6 text-sm font-bold text-emerald-700 underline">Start your first check-in</button>
                 )}
+              </GlassCard>
+
+              {/* Middle/Right: Stats & Insights */}
+              <div className="lg:col-span-2 space-y-8">
+                 {/* Quick Stats Grid */}
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { l: "Avg Pain", v: state.entries.length > 0 ? (state.entries.reduce((s, e) => s + e.pain, 0) / state.entries.length).toFixed(1) : '-', i: Heart, c: "text-rose-500" },
+                      { l: "Avg Sleep", v: state.entries.length > 0 ? (state.entries.reduce((s, e) => s + e.sleepHours, 0) / state.entries.length).toFixed(1) + 'h' : '-', i: Moon, c: "text-indigo-500" },
+                      { l: "Avg Mood", v: state.entries.length > 0 ? (state.entries.reduce((s, e) => s + e.mood, 0) / state.entries.length).toFixed(1) : '-', i: Brain, c: "text-purple-500" },
+                      { l: "Entries", v: state.entries.length, i: Activity, c: "text-emerald-500" }
+                    ].map((stat, i) => (
+                      <GlassCard key={i} className="p-4 flex flex-col items-center justify-center text-center hover:border-emerald-200 transition-colors">
+                         <stat.i className={`mb-2 ${stat.c}`} size={24} />
+                         <span className="text-2xl font-bold serif text-stone-800">{stat.v}</span>
+                         <span className="text-xs font-bold uppercase text-stone-400">{stat.l}</span>
+                      </GlassCard>
+                    ))}
+                 </div>
+
+                 {/* Insights */}
+                 {aiInsights.length > 0 && (
+                   <GlassCard className="p-6 bg-gradient-to-br from-emerald-50 to-stone-50 border-emerald-100">
+                      <h3 className="font-bold serif text-emerald-900 mb-4 flex items-center gap-2"><Sparkles size={18}/> AI Vedic Insights</h3>
+                      <div className="grid gap-3">
+                        {aiInsights.slice(0, 3).map((insight, i) => (
+                          <div key={i} className="bg-white p-4 rounded-xl border border-stone-100 shadow-sm flex gap-3">
+                             <Target className="text-emerald-600 mt-1 shrink-0" size={18} />
+                             <div>
+                               <h4 className="font-bold text-sm text-stone-800">{insight.title}</h4>
+                               <p className="text-sm text-stone-600">{insight.message}</p>
+                             </div>
+                          </div>
+                        ))}
+                      </div>
+                   </GlassCard>
+                 )}
               </div>
+              
+              {/* Bottom: Charts */}
+              {state.entries.length > 0 && (
+                <div className="lg:col-span-3 grid md:grid-cols-2 gap-8">
+                   <TrendChart data={state.entries} metric="pain" title="Pain Levels Trend" color="#EF4444" />
+                   <TrendChart data={state.entries} metric="sleepHours" title="Sleep Duration Trend" color="#6366F1" />
+                </div>
+              )}
             </div>
+          )}
+
+          {activeView === 'assessment' && <HealthAssessmentForm onSubmit={handleHealthSubmit} isSubmitting={isSubmitting} />}
+          
+          {activeView === 'insights' && (
+             <div className="max-w-2xl mx-auto space-y-6">
+                <GlassCard className="p-8 text-center">
+                   <Brain size={48} className="mx-auto text-emerald-200 mb-4" />
+                   <h2 className="text-3xl font-bold serif text-emerald-900 mb-2">Vedic Intelligence</h2>
+                   <p className="text-stone-500">Deep analysis based on your tracked metrics.</p>
+                </GlassCard>
+                {aiInsights.map((insight, i) => (
+                   <GlassCard key={i} className="p-6 border-l-4 border-l-emerald-600">
+                      <h3 className="text-lg font-bold serif mb-2 text-stone-800">{insight.title}</h3>
+                      <p className="text-stone-600 leading-relaxed mb-4">{insight.message}</p>
+                      <div className="flex gap-2">
+                         <span className="text-xs font-bold bg-stone-100 px-2 py-1 rounded text-stone-500">Confidence: {insight.confidence}%</span>
+                         <span className="text-xs font-bold bg-emerald-100 px-2 py-1 rounded text-emerald-700 uppercase">{insight.priority} Priority</span>
+                      </div>
+                   </GlassCard>
+                ))}
+             </div>
           )}
 
           {activeView === 'trends' && (
-            <div className="space-y-6">
-              {state.entries.length > 0 ? (
-                <>
-                  <TrendChart data={state.entries} metric="pain" title="Pain Trend (0-10)" />
-                  <TrendChart data={state.entries} metric="sleepHours" title="Sleep Hours Trend" />
-                  <TrendChart data={state.entries} metric="mood" title="Mood Trend (1-5)" />
-                  <RadarHealthChart data={state.entries} />
-                </>
-              ) : (
-                <div className="bg-white rounded-xl p-12 shadow-lg text-center border border-gray-200">
-                  <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-600 mb-2">
-                    No trend data available
-                  </h3>
-                  <p className="text-gray-500 mb-6">
-                    Start logging your health data to see trends and patterns.
-                  </p>
-                  <button
-                    onClick={() => setActiveView('assessment')}
-                    className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors shadow-md"
-                  >
-                    Start Assessment
-                  </button>
-                </div>
-              )}
-            </div>
+             <div className="space-y-8">
+               {state.entries.length > 0 ? (
+                 <>
+                  <div className="grid md:grid-cols-2 gap-8">
+                     <TrendChart data={state.entries} metric="aiScore" title="Overall Wellness Score" />
+                     <TrendChart data={state.entries} metric="mood" title="Mood Stability" color="#A855F7" />
+                  </div>
+                  <GlassCard className="p-8 flex items-center justify-center">
+                     <div className="w-full max-w-lg h-80">
+                       <h3 className="text-center font-bold serif text-stone-700 mb-4">Holistic Balance Radar</h3>
+                       <ResponsiveContainer>
+                          <RadarChart data={[state.entries[state.entries.length -1]]}>
+                             <PolarGrid stroke="#E7E5E4" />
+                             <PolarAngleAxis dataKey="timestamp" tick={false} />
+                             <Radar name="Current" dataKey="pain" stroke="#059669" fill="#059669" fillOpacity={0.2} />
+                          </RadarChart>
+                       </ResponsiveContainer>
+                       <p className="text-center text-xs text-stone-400 mt-2">* Visualization of current metrics against optimal values</p>
+                     </div>
+                  </GlassCard>
+                 </>
+               ) : (
+                 <GlassCard className="p-12 text-center">
+                    <TrendingUp size={48} className="mx-auto text-stone-300 mb-4" />
+                    <h3 className="text-xl font-bold text-stone-600">No History Yet</h3>
+                    <p className="text-stone-400">Complete assessments to see your health journey.</p>
+                 </GlassCard>
+               )}
+             </div>
           )}
         </main>
 
         {/* Settings Modal */}
         {showSettings && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4 border border-gray-200">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-800">Settings</h3>
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-gray-700">Export Data</label>
-                  <button
-                    onClick={exportData}
-                    className="flex items-center gap-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-md"
-                  >
-                    <Download className="w-4 h-4" />
-                    Export
-                  </button>
-                </div>
-                
-                <div className="pt-4 border-t border-gray-200">
-                  <div className="text-sm text-gray-500">
-                    <p>Total Entries: {state.entries.length}</p>
-                    <p>Current Streak: {state.streak} days</p>
-                    <p>Last Update: {state.lastUpdate ? new Date(state.lastUpdate).toLocaleDateString() : 'Never'}</p>
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <GlassCard className="w-full max-w-md p-6">
+               <div className="flex justify-between items-center mb-6">
+                 <h3 className="text-xl font-bold serif text-stone-800">Preferences</h3>
+                 <button onClick={() => setShowSettings(false)} className="text-stone-400 hover:text-stone-800">×</button>
+               </div>
+               <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-stone-50 rounded-xl">
+                    <span className="font-bold text-stone-700">Export Health Data</span>
+                    <button onClick={() => {
+                       const dataStr = JSON.stringify(state, null, 2);
+                       const link = document.createElement('a');
+                       link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                       link.download = `ayursutra-data-${new Date().toISOString()}.json`;
+                       link.click();
+                    }} className="flex items-center gap-2 text-emerald-700 font-bold text-sm hover:underline">
+                      <Download size={16}/> JSON
+                    </button>
                   </div>
-                </div>
-              </div>
-            </div>
+                  <div className="text-xs text-stone-400 text-center pt-4">
+                    AyurSutra Intelligence v2.0
+                  </div>
+               </div>
+            </GlassCard>
           </div>
         )}
+
       </div>
     </div>
   );

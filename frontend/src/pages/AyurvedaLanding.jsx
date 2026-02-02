@@ -457,8 +457,8 @@ const AyurvedaLanding = () => {
                {/* Feature 2: Prakriti */}
                <TiltCard className="p-8 bg-emerald-900 text-white border-emerald-800 shadow-2xl">
                    <Activity className="text-amber-400 mb-6" size={32}/>
-                   <h3 className="text-2xl font-bold mb-3 serif text-white">Prakriti AI</h3>
-                   <p className="text-emerald-100 text-sm leading-relaxed mb-6">
+                   <h3 className="text-2xl font-bold mb-3 serif text-black">Prakriti AI</h3>
+                   <p className=" text-sm leading-relaxed mb-6 text-black">
                       Advanced Dosha analysis based on Nadi Pariksha inputs.
                    </p>
                    {/* Bar Chart Visual */}
