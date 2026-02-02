@@ -1,1243 +1,563 @@
-import React, { useState, useEffect } from "react";
+// src/pages/PatientDashboard.jsx
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import {
-  Home,
-  Calendar,
-  List,
-  TrendingUp,
-  Lightbulb,
-  Heart,
-  Settings,
-  HelpCircle,
-  Activity,
-  Clock,
-  ArrowUp,
-  FileText,
-  CloudCog,
+  Calendar, Clock, Activity, Leaf, Sparkles, X, 
+  Menu, LogOut, Search, ChevronRight, User, 
+  ArrowRight, ShieldCheck, TrendingUp, Lightbulb
 } from "lucide-react";
-import { Leaf, IndianRupee } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Float, Environment, MeshTransmissionMaterial } from "@react-three/drei";
 import HealthInfo from "./HealthInfo";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
-import Loading from "./Loading.jsx";
+
+// ✅ API Config
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+
+// --- 0. Shared Style Injection (Matches Landing Page) ---
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+    
+    :root {
+      --color-bg: #F5F5F4;
+      --color-text-main: #1C1917;
+      --color-primary: #064E3B;
+    }
+
+    body { font-family: 'Manrope', sans-serif; background-color: var(--color-bg); color: var(--color-text-main); }
+    h1, h2, h3, h4, .serif { font-family: 'Playfair Display', serif; }
+    
+    .glass-card {
+      background: rgba(255, 255, 255, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+    }
+  `}</style>
+);
+
+// --- 1. 3D Background (Fluid Emerald Element) ---
+const FluidGlass = () => {
+  const mesh = useRef();
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    mesh.current.rotation.x = t * 0.1;
+    mesh.current.rotation.y = t * 0.15;
+    mesh.current.position.y = Math.sin(t / 2) * 0.1;
+  });
+
+  return (
+    <group position={[3, 0, -3]}>
+      <Float speed={2} rotationIntensity={0.2} floatIntensity={0.5}>
+        <mesh ref={mesh} scale={1.8}>
+          <torusKnotGeometry args={[1, 0.3, 128, 32]} />
+          <MeshTransmissionMaterial
+            backside
+            samples={6}
+            thickness={2}
+            chromaticAberration={0.04}
+            anisotropy={0.1}
+            distortion={0.4}
+            distortionScale={0.5}
+            temporalDistortion={0.1}
+            iridescence={1}
+            color="#047857" // Darker Emerald to match Zen Stones
+            bg="#F5F5F4"
+          />
+        </mesh>
+      </Float>
+    </group>
+  );
+};
+
+const Scene = () => (
+  <div className="fixed inset-0 z-0 w-full h-full pointer-events-none">
+    <Canvas camera={{ position: [0, 0, 6], fov: 45 }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
+      <ambientLight intensity={1.2} />
+      <spotLight position={[10, 20, 10]} angle={0.2} penumbra={1} intensity={2} color="#fff7ed" />
+      <Suspense fallback={null}>
+        <FluidGlass />
+        <Environment preset="forest" blur={0.6} background={false} />
+      </Suspense>
+    </Canvas>
+  </div>
+);
+
+// --- 2. UI Components ---
+
+const GlassPanel = ({ children, className = "", onClick }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true }}
+    whileHover={onClick ? { y: -5, transition: { duration: 0.2 } } : {}}
+    onClick={onClick}
+    className={`glass-card rounded-2xl p-6 relative overflow-hidden transition-all duration-300 ${className} ${onClick ? 'cursor-pointer hover:shadow-xl hover:border-emerald-600/30' : ''}`}
+  >
+    {children}
+  </motion.div>
+);
+
+// --- 3. Main Dashboard ---
 
 const PatientDashboard = () => {
   const [activeSection, setActiveSection] = useState("dashboard");
-  const [notifications, setNotifications] = useState(3);
-  // const [loading, setLoading] = useState(false);
-  const [therapies, setTherapies] = useState([]);
+  const [user, setUser] = useState(null);
   const [appointments, setAppointments] = useState([]);
-  const [progressData, setProgressData] = useState([]);
-  const [therapyProgressData, setTherapyProgressData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [therapies, setTherapies] = useState([]);
+  
+  // UI State
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [modalLoading, setModalLoading] = useState(false);
-  const userId = JSON.parse(localStorage.getItem("user"))?.id;
-  const user = JSON.parse(localStorage.getItem("user")); 
+
   const navigate = useNavigate();
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30 });
 
-  const navItems = [
-    { id: "dashboard", icon: Home, label: "Dashboard", active: true },
-    { id: "appointments", icon: Calendar, label: "Appointments", count: 2 },
-    { id: "therapies", icon: List, label: "Therapies" },
-    { id: "progress", icon: TrendingUp, label: "Progress" },
-    { id: "recommendations", icon: Lightbulb, label: "AI Consultant" },
-    { id: "health", icon: Heart, label: "Health Info" },
-  ];
+  useEffect(() => {
+    const u = JSON.parse(localStorage.getItem("user"));
+    if (u) setUser(u);
+    fetchData(u?.id);
 
-  const bottomNavItems = [
-    { id: "logout", icon: CloudCog, label: "Logout" }
-  ];
+    const onScroll = () => setIsScrolled(window.scrollY > 50);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  const therapySchedule = [
-    {
-      therapy: "Abhyanga",
-      date: "2025-08-30",
-      time: "9:00 AM",
-      status: "Scheduled",
-      duration: "60 min",
-      practitioner: "Dr. Sharma",
-    },
-    {
-      therapy: "Shirodhara",
-      date: "2025-08-31",
-      time: "11:00 AM",
-      status: "Confirmed",
-      duration: "45 min",
-      practitioner: "Dr. Patel",
-    },
-    {
-      therapy: "Swedana",
-      date: "2025-09-01",
-      time: "2:00 PM",
-      status: "Pending",
-      duration: "30 min",
-      practitioner: "Dr. Kumar",
-    },
-  ];
+  const fetchData = async (userId) => {
+    try {
+      const [apptRes, therapyRes] = await Promise.all([
+        userId ? axios.get(`${API_BASE_URL}/appointments/me/${userId}`) : { data: [] },
+        axios.get(`${API_BASE_URL}/therapies`)
+      ]);
 
-  // Updated dashboard metrics instead of health metrics
-  const dashboardMetrics = [
-    {
-      label: "Total Appointments",
-      value: appointments.length.toString(),
-      unit: "",
-      trend: appointments.length > 0 ? `+${appointments.length}` : "0",
-      color: "emerald",
-      icon: Calendar,
-    },
-    {
-      label: "Available Therapies",
-      value: therapies.length.toString(),
-      unit: "",
-      trend: therapies.length > 0 ? `${therapies.length} active` : "0 active",
-      color: "blue",
-      icon: List,
-    },
-    {
-      label: "Completed Sessions",
-      value: appointments.filter(appt => appt.status === 'completed').length.toString(),
-      unit: "",
-      trend: appointments.filter(appt => appt.status === 'completed').length > 0 ? "completed" : "none yet",
-      color: "green",
-      icon: Activity,
-    },
-    {
-      label: "Upcoming Sessions",
-      value: appointments.filter(appt => appt.status === 'scheduled' || appt.status === 'confirmed').length.toString(),
-      unit: "",
-      trend: appointments.filter(appt => appt.status === 'scheduled' || appt.status === 'confirmed').length > 0 ? "scheduled" : "none",
-      color: "amber",
-      icon: Clock,
-    },
-  ];
+      const formatted = apptRes.data.map(appt => ({
+        id: appt._id,
+        title: appt.therapy?.name || "Therapy",
+        doctor: appt.practitioner?.user?.name || "Expert Vaidya",
+        date: new Date(appt.start).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+        time: new Date(appt.start).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        status: appt.status,
+        description: appt.therapy?.description,
+        price: appt.therapy?.price
+      }));
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "confirmed":
-        return "bg-green-100 text-green-800";
-      case "scheduled":
-        return "bg-blue-100 text-blue-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "completed":
-        return "bg-purple-100 text-purple-800";
-      case "cancelled":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      setAppointments(formatted);
+      setTherapies(therapyRes.data);
+    } catch (e) {
+      console.error(e);
     }
   };
 
- const handleLogout = () => {
+  const handleLogout = () => {
     localStorage.removeItem("user");
     localStorage.removeItem("practioner");
     window.location.href = "/";
   };
 
-  // Helper function to format date and time
-  const formatDateTime = (dateString) => {
-    const date = new Date(dateString);
-    return {
-      date: date.toLocaleDateString("en-IN", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }),
-      time: date.toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      }),
-    };
-  };
+  const navItems = [
+    { id: "dashboard", label: "Overview" },
+    { id: "appointments", label: "Schedule" },
+    { id: "therapies", label: "Therapies" },
+    { id: "ai", label: "AI Consultant" },
+    { id: "health", label: "Health Info" },
+  ];
 
-  // Function to fetch appointment details
-  const fetchAppointmentDetails = async (appointmentId) => {
-    setModalLoading(true);
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/appointments/${appointmentId}`);
-      console.log("Appointment details:", response.data);
-      
-      // Transform the detailed data
-      const appointment = response.data;
-      const detailedAppointment = {
-        id: appointment._id,
-        therapyName: appointment.therapy?.name || "Unknown Therapy",
-        therapyDescription: appointment.therapy?.description || "No description available",
-        therapyPrice: appointment.therapy?.price || 0,
-        therapyDuration: appointment.therapy?.duration || 60,
-        date: formatDateTime(appointment.start).date,
-        time: formatDateTime(appointment.start).time,
-        endTime: formatDateTime(appointment.end).time,
-        duration: `${appointment.therapy?.duration || 60} min`,
-        practitioner: appointment.practitioner?.user?.name || 
-                      appointment.practitioner?.name || 
-                      "Dr. Unknown",
-        practitionerEmail: appointment.practitioner?.user?.email || "N/A",
-        practitionerSpecialization: appointment.practitioner?.specializations?.join(", ") || "Ayurveda Specialist",
-        status: appointment.status,
-        notes: appointment.notes || "",
-        patientNotes: appointment.patientNotes || "No additional notes",
-        createdAt: new Date(appointment.createdAt).toLocaleDateString("en-IN", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit"
-        }),
-        updatedAt: new Date(appointment.updatedAt).toLocaleDateString("en-IN", {
-          year: "numeric",
-          month: "long", 
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit"
-        }),
-        bookingId: appointment._id?.slice(-8)?.toUpperCase() || "N/A"
-      };
-      
-      setSelectedAppointment(detailedAppointment);
-      setShowModal(true);
-    } catch (error) {
-      console.error("Error fetching appointment details:", error);
-      
-      // Fallback to basic appointment data if detailed fetch fails
-      const basicAppointment = appointments.find(appt => appt.id === appointmentId);
-      if (basicAppointment) {
-        setSelectedAppointment({
-          ...basicAppointment,
-          therapyDescription: "Detailed information not available at the moment",
-          therapyPrice: "Contact for pricing",
-          practitionerEmail: "N/A",
-          practitionerSpecialization: "Ayurveda Specialist",
-          patientNotes: "No additional notes available",
-          createdAt: "Information not available",
-          updatedAt: "Information not available",
-          bookingId: "N/A"
-        });
-        setShowModal(true);
-      } else {
-        alert("Unable to fetch appointment details. Please try again later.");
-      }
-    } finally {
-      setModalLoading(false);
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case "confirmed": return "bg-emerald-100 text-emerald-800 border-emerald-200";
+      case "scheduled": return "bg-blue-100 text-blue-800 border-blue-200";
+      case "pending": return "bg-amber-100 text-amber-800 border-amber-200";
+      default: return "bg-stone-100 text-stone-600 border-stone-200";
     }
   };
-
-  // Function to close modal
-  const closeModal = () => {
-    setShowModal(false);
-    setSelectedAppointment(null);
-  };
-
-  // Records fetch
-  useEffect(() => {
-    if (activeSection === "records") {
-      setLoading(true);
-      fetch("https://jsonplaceholder.typicode.com/posts?_limit=5")
-        .then((res) => res.json())
-        .then((data) => {
-          setRecords(data);
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error("Error fetching records:", err);
-          setLoading(false);
-        });
-    }
-  }, [activeSection]);
-
-  // Updated Therapies fetch with axios and proper API endpoint
-  useEffect(() => {
-    if (activeSection === "therapies" && userId) {
-      setLoading(true);
-      console.log("Fetching therapies for userId:", userId); // Debug log
-
-      axios
-        .get(`${import.meta.env.VITE_API_BASE_URL}/therapies`, {
-          timeout: 10000, // 10 second timeout
-        })
-        .then((res) => {
-          console.log("Fetched Therapies Data:", res.data);
-          setTherapies(res.data);
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error("Error fetching therapies:", err);
-
-          // Better error handling
-          if (err.code === "ECONNABORTED") {
-            console.error("Request timeout");
-          } else if (err.response) {
-            console.error(
-              "Server error:",
-              err.response.status,
-              err.response.data
-            );
-          } else if (err.request) {
-            console.error("Network error");
-          }
-
-          setLoading(false);
-        });
-    }
-  }, [activeSection, userId]);
-
-  // Fetch therapies for dashboard display
-  useEffect(() => {
-    if (activeSection === "dashboard") {
-      axios
-        .get(`${import.meta.env.VITE_API_BASE_URL}/therapies`, {
-          timeout: 10000,
-        })
-        .then((res) => {
-          setTherapies(res.data);
-        })
-        .catch((err) => {
-          console.error("Error fetching therapies for dashboard:", err);
-        });
-    }
-  }, [activeSection]);
-
-  // Appointments fetch - UPDATED to handle your API response structure
-  useEffect(() => {
-    if ((activeSection === "appointments" || activeSection === "progress" || activeSection === "dashboard") && userId) {
-      setLoading(true);
-      axios
-        .get(`${import.meta.env.VITE_API_BASE_URL}/appointments/me/${userId}`)
-        .then((res) => {
-          console.log("Fetched Appointments Data:", res.data);
-
-          // Transform the API response to match your component's expected structure
-          const transformedAppointments = res.data.map((appointment) => ({
-            id: appointment._id,
-            therapyName: appointment.therapy?.name || "Unknown Therapy",
-            date: formatDateTime(appointment.start).date,
-            time: formatDateTime(appointment.start).time,
-            duration: `${appointment.therapy?.duration || 60} min`,
-            practitioner:
-              appointment.practitioner?.user?.name ||
-              appointment.practitioner?.name ||
-              "Dr. Unknown",
-            status: appointment.status,
-            notes: appointment.notes || "",
-            endTime: formatDateTime(appointment.end).time,
-            createdAt: appointment.createdAt,
-            updatedAt: appointment.updatedAt,
-          }));
-
-          setAppointments(transformedAppointments);
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error("Error fetching appointments:", err);
-          setLoading(false);
-
-          // Fallback data if API fails
-          const fallbackAppointments = [
-            {
-              id: 1,
-              therapyName: "Abhyanga Massage",
-              date: "02/09/2025",
-              time: "10:00 AM",
-              duration: "60 min",
-              practitioner: "Dr. Sharma",
-              status: "confirmed",
-              notes: "Full body oil massage therapy",
-            },
-            {
-              id: 2,
-              therapyName: "Shirodhara",
-              date: "05/09/2025",
-              time: "2:00 PM",
-              duration: "45 min",
-              practitioner: "Dr. Patel",
-              status: "scheduled",
-              notes: "Oil pouring therapy for relaxation",
-            },
-          ];
-          setAppointments(fallbackAppointments);
-        });
-    }
-  }, [activeSection, userId]);
-
-  // Generate Progress Data from appointments
-  useEffect(() => {
-    if (activeSection === "progress" && appointments.length > 0) {
-      // Appointments per date
-      const dateCounts = {};
-      appointments.forEach((appt) => {
-        const date = new Date(appt.date.split('/').reverse().join('-')).toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric' 
-        });
-        dateCounts[date] = (dateCounts[date] || 0) + 1;
-      });
-      
-      const chartData = Object.keys(dateCounts)
-        .map((date) => ({ date, appointments: dateCounts[date] }))
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
-      
-      setProgressData(chartData);
-
-      // Therapy type distribution
-      const therapyCounts = {};
-      appointments.forEach((appt) => {
-        therapyCounts[appt.therapyName] = (therapyCounts[appt.therapyName] || 0) + 1;
-      });
-
-      const therapyData = Object.keys(therapyCounts).map((therapy) => ({
-        therapy,
-        count: therapyCounts[therapy],
-      }));
-
-      setTherapyProgressData(therapyData);
-    }
-  }, [activeSection, appointments]);
-
-  // Colors for pie chart
-  const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
 
   return (
-    <div className="flex min-h-screen font-sans bg-gray-50">
-      {/* Sidebar */}
-      <div className="w-80 bg-white shadow-lg flex flex-col">
-        <div className="p-6 border-b border-gray-200 flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl grid place-items-center bg-gradient-to-br from-green-100 to-amber-100">
-              <Leaf className="w-5 h-5 text-green-700" />
-            </div>
-            <div>
-              <div className="text-xl font-extrabold tracking-tight text-green-600">
-                AyurSutra
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        <div className="flex-1 p-4 space-y-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeSection === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveSection(item.id)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 ${
-                  isActive
-                    ? "bg-emerald-50 text-emerald-700 shadow-sm border-l-4 border-emerald-500"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon size={20} />
-                  <span className="font-medium">{item.label}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="p-4 border-t border-gray-200 space-y-2">
-          {bottomNavItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  if (item.id === "logout") {
-                    handleLogout();
-                  } else {
-                    setActiveSection(item.id);
-                  }
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors"
-              >
-                <Icon size={20} />
-                <span className="font-medium">{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
+    <div className="relative min-h-screen bg-[#F5F5F4] text-[#1C1917] overflow-x-hidden selection:bg-emerald-200 selection:text-emerald-900">
+      <GlobalStyles />
+      
+      {/* Background Texture */}
+      <div className="fixed inset-0 z-0 opacity-[0.05] pointer-events-none mix-blend-multiply" 
+           style={{backgroundImage: `url("https://www.transparenttextures.com/patterns/cubes.png")`}}>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        {/* Header - Only show on dashboard */}
-        {activeSection === "dashboard" && (
-          <div className="bg-white shadow-sm border-b border-gray-200 p-6 flex justify-center items-center">
-            <div className="flex flex-col items-center justify-center min-h-[8vh] 
-                            bg-gradient-to-r from-emerald-50 via-amber-50 to-white 
-                            rounded-2xl shadow-md py-12 px-6 w-full">
-              <h1 className="text-3xl md:text-4xl font-extrabold bg-clip-text text-transparent 
-                             bg-gradient-to-r from-emerald-600 to-amber-600 drop-shadow-lg text-center">
-                Welcome to AyurSutra, {user?.name || "Guest"}!
-              </h1>
-              <p className="mt-4 text-lg md:text-xl text-gray-700 font-medium text-center">
-                Embark on your personalized Ayurveda and Panchakarma wellness journey 🌿
-              </p>
-            </div>
-          </div>
-        )}
+      {/* Top Loading Bar */}
+      <motion.div style={{ scaleX }} className="fixed top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-800 via-emerald-500 to-amber-500 origin-left z-[100]" />
 
-        <div className="p-6 space-y-8">
-          {/* Dashboard Section */}
-          {activeSection === "dashboard" && (
-            <>
-              {/* Updated Dashboard Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {dashboardMetrics.map((metric, index) => {
-                  const IconComponent = metric.icon;
-                  return (
-                    <div
-                      key={index}
-                      className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <IconComponent
-                          size={24}
-                          className={`text-${metric.color}-500`}
-                        />
-                        <span
-                          className={`flex items-center gap-1 text-sm font-medium ${
-                            metric.value !== "0"
-                              ? "text-green-600"
-                              : "text-gray-500"
-                          }`}
-                        >
-                          {metric.trend}
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-gray-600 text-sm font-medium">
-                          {metric.label}
-                        </p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          {metric.value}
-                          <span className="text-lg text-gray-500">
-                            {metric.unit}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+      {/* 3D Scene */}
+      <Scene />
 
-              {/* Therapy Schedule */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Your Upcoming Appointments
-                  </h2>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Therapy
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Date & Time
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Duration
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Practitioner
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {/* Show real appointments if available, otherwise show dummy data */}
-                      {appointments.length > 0 ? (
-                        appointments.slice(0, 3).map((appointment) => (
-                          <tr
-                            key={appointment.id}
-                            className="hover:bg-gray-50 transition-colors"
-                          >
-                            <td className="px-6 py-4 font-medium text-gray-900">
-                              {appointment.therapyName}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-gray-900">{appointment.date}</div>
-                              <div className="text-gray-600 text-sm flex items-center gap-1">
-                                <Clock size={14} />
-                                {appointment.time}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-gray-600">
-                              {appointment.duration}
-                            </td>
-                            <td className="px-6 py-4 text-gray-900">
-                              {appointment.practitioner}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                                  appointment.status
-                                )}`}
-                              >
-                                {appointment.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        therapySchedule.map((therapy, index) => (
-                          <tr
-                            key={index}
-                            className="hover:bg-gray-50 transition-colors"
-                          >
-                            <td className="px-6 py-4 font-medium text-gray-900">
-                              {therapy.therapy}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-gray-900">{therapy.date}</div>
-                              <div className="text-gray-600 text-sm flex items-center gap-1">
-                                <Clock size={14} />
-                                {therapy.time}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-gray-600">
-                              {therapy.duration}
-                            </td>
-                            <td className="px-6 py-4 text-gray-900">
-                              {therapy.practitioner}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                                  therapy.status
-                                )}`}
-                              >
-                                {therapy.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                {/* Show link to view all appointments */}
-                <div className="p-6 border-t border-gray-200 text-center">
-                  <button
-                    onClick={() => setActiveSection("appointments")}
-                    className="text-emerald-600 hover:text-emerald-800 font-medium"
-                  >
-                    View All Appointments →
+      {/* --- NAVBAR: CAPSULE STYLE (Matches Landing) --- */}
+      <header className={`fixed top-6 left-0 right-0 z-50 transition-all duration-300 px-4`}>
+         <div className={`max-w-5xl mx-auto rounded-full transition-all duration-300 ${isScrolled ? 'bg-white/90 backdrop-blur-xl shadow-xl border border-white/50 py-3 px-6' : 'bg-transparent py-4 px-0'}`}>
+            <div className="flex justify-between items-center">
+               
+               {/* Logo */}
+               <Link to="/" className="flex items-center gap-3 pl-2 group">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-800 to-emerald-600 flex items-center justify-center text-white shadow-lg border-2 border-white">
+                     <Leaf size={18} fill="currentColor" />
+                  </div>
+                  <span className="text-xl font-bold tracking-tight serif text-gray-900">
+                     Ayur<span className="text-emerald-700">Sutra</span>
+                  </span>
+               </Link>
+
+               {/* Desktop Nav */}
+               <nav className="hidden md:flex items-center gap-1 bg-stone-200/50 p-1.5 rounded-full backdrop-blur-md border border-white/50">
+                  {navItems.map(item => (
+                     <button 
+                        key={item.id} 
+                        onClick={() => setActiveSection(item.id)}
+                        className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
+                           activeSection === item.id 
+                           ? "bg-white text-emerald-800 shadow-md" 
+                           : "text-stone-700 hover:bg-white/50 hover:text-emerald-800"
+                        }`}
+                     >
+                        {item.label}
+                     </button>
+                  ))}
+               </nav>
+
+               {/* Auth/Menu */}
+               <div className="flex items-center gap-3 pr-2">
+                  <button onClick={handleLogout} className="hidden md:flex items-center gap-2 bg-gray-900 text-white px-6 py-2.5 rounded-full text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg hover:shadow-emerald-500/20">
+                     Sign Out <LogOut size={16} />
                   </button>
-                </div>
-              </div>
+                  <button onClick={() => setMobileMenu(!mobileMenu)} className="md:hidden w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md text-gray-800">
+                    <Menu size={20}/>
+                  </button>
+               </div>
+            </div>
+         </div>
+      </header>
 
-              {/* Available Therapies Preview */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Featured Therapies
-                  </h2>
-                  <p className="text-gray-600 mt-1">Popular Ayurveda and Panchakarma treatments</p>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {/* Show real therapies if available, otherwise show dummy data */}
-                    {therapies.length > 0 ? (
-                      therapies.slice(0, 3).map((therapy, index) => (
-                        <div 
-                          key={therapy._id || index}
-                          className="bg-gradient-to-br from-emerald-50 to-amber-50 rounded-lg p-6 hover:shadow-md transition-shadow"
-                        >
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            {therapy.name}
-                          </h3>
-                          <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                            {therapy.description || "Ancient Ayurvedic therapy for wellness and healing"}
-                          </p>
-                          <div className="flex justify-between items-center">
-                            <span className="flex items-center gap-1 text-emerald-700 text-sm font-medium">
-                              <Clock size={16} /> {therapy.duration || "30"} min
-                            </span>
-                            <span className="flex items-center gap-1 text-amber-700 text-sm font-medium">
-                              <IndianRupee size={16} /> ₹{therapy.price || "1000"}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      [
-                        { name: "Abhyanga Massage", desc: "Full body oil massage therapy for relaxation and detox", duration: "60", price: "2500" },
-                        { name: "Shirodhara Treatment", desc: "Continuous oil pouring on forehead for mental peace", duration: "45", price: "2000" },
-                        { name: "Swedana Therapy", desc: "Herbal steam bath for toxin elimination", duration: "30", price: "1500" }
-                      ].map((therapy, index) => (
-                        <div 
-                          key={index}
-                          className="bg-gradient-to-br from-emerald-50 to-amber-50 rounded-lg p-6 hover:shadow-md transition-shadow"
-                        >
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            {therapy.name}
-                          </h3>
-                          <p className="text-gray-600 text-sm mb-4">
-                            {therapy.desc}
-                          </p>
-                          <div className="flex justify-between items-center">
-                            <span className="flex items-center gap-1 text-emerald-700 text-sm font-medium">
-                              <Clock size={16} /> {therapy.duration} min
-                            </span>
-                            <span className="flex items-center gap-1 text-amber-700 text-sm font-medium">
-                              <IndianRupee size={16} /> ₹{therapy.price}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div className="text-center mt-6">
-                    <button
-                      onClick={() => setActiveSection("therapies")}
-                      className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-amber-500 
-                        text-white font-semibold rounded-xl shadow-md 
-                        hover:shadow-lg hover:from-emerald-600 hover:to-amber-600 
-                        transition-all duration-300"
-                    >
-                      Explore All Therapies →
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {mobileMenu && (
+           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-[#F5F5F4] pt-32 px-6 md:hidden">
+              <div className="flex flex-col gap-6 text-center">
+                 {navItems.map(item => (
+                    <button key={item.id} onClick={() => {setActiveSection(item.id); setMobileMenu(false)}} className="text-2xl font-bold text-stone-800 serif border-b border-stone-200 pb-2">
+                       {item.label}
                     </button>
-                  </div>
-                </div>
+                 ))}
+                 <button onClick={handleLogout} className="mt-8 w-full py-4 bg-gray-900 text-white rounded-xl font-bold text-lg shadow-xl">
+                    Sign Out
+                 </button>
+                 <button onClick={() => setMobileMenu(false)} className="absolute top-8 right-8 p-2 bg-stone-200 rounded-full"><X/></button>
               </div>
-            </>
-          )}
+           </motion.div>
+        )}
+      </AnimatePresence>
 
-          {/* Progress Section */}
-          {activeSection === "progress" && (
-            <div className="space-y-8">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Progress Overview</h2>
-                
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-                    <p className="text-gray-500">Loading progress data...</p>
-                  </div>
-                ) : appointments.length === 0 ? (
-                  <div className="text-center py-12">
-                    <TrendingUp className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-                    <p className="text-gray-500 text-lg">No appointment data available yet.</p>
-                    <p className="text-gray-400">Book your first therapy session to see progress!</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Appointments Timeline Chart */}
-                    <div className="bg-gray-50 rounded-lg p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Appointments Timeline</h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={progressData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="date" />
-                          <YAxis allowDecimals={false} />
-                          <Tooltip />
-                          <Line 
-                            type="monotone" 
-                            dataKey="appointments" 
-                            stroke="#10B981" 
-                            strokeWidth={3}
-                            dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
+      {/* --- MAIN CONTENT --- */}
+      <main className="relative z-10 pt-40 pb-12 px-6 max-w-7xl mx-auto">
+        
+        {/* Welcome Header */}
+        <div className="mb-12 flex flex-col md:flex-row justify-between items-end gap-6">
+           <div>
+              <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold uppercase tracking-widest mb-4">
+                 <Sparkles size={12} fill="currentColor"/> Patient Portal
+              </motion.div>
+              <h1 className="text-4xl md:text-5xl font-bold text-emerald-950 tracking-tight serif mb-2">
+                 Namaste, {user?.name?.split(' ')[0] || "User"} 🙏
+              </h1>
+              <p className="text-stone-600 font-medium text-lg">Manage your healing journey with precision.</p>
+           </div>
+           
+           <div className="flex items-center gap-3">
+              <div className="hidden md:flex relative group">
+                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                 <input type="text" placeholder="Search records..." className="bg-white/60 border border-stone-200 rounded-full py-3 pl-10 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-800/20 focus:bg-white w-64 shadow-sm transition-all" />
+              </div>
+              <div className="glass-card px-5 py-3 rounded-full text-sm font-bold text-stone-600">
+                 {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+              </div>
+           </div>
+        </div>
 
-                    {/* Therapy Distribution Pie Chart */}
-                    <div className="bg-gray-50 rounded-lg p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Therapy Distribution</h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={therapyProgressData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ therapy, percent }) => `${therapy} ${(percent * 100).toFixed(0)}%`}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="count"
-                          >
-                            {therapyProgressData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
-
-                {/* Progress Summary Stats */}
-                {appointments.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                    <div className="bg-emerald-50 rounded-lg p-6 text-center">
-                      <div className="text-3xl font-bold text-emerald-600 mb-2">
-                        {appointments.length}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeSection}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.4 }}
+          >
+            
+            {/* --- DASHBOARD OVERVIEW --- */}
+            {activeSection === 'dashboard' && (
+              <div className="space-y-8">
+                {/* Stats Row */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  {[
+                    { label: "Sessions", val: appointments.length, icon: Calendar, color: "emerald" },
+                    { label: "Hours", val: appointments.length * 1.5, icon: Clock, color: "amber" },
+                    { label: "Dosha", val: "Vata-Pitta", icon: Activity, color: "blue" },
+                    { label: "Therapies", val: therapies.length, icon: Leaf, color: "teal" }
+                  ].map((stat, i) => (
+                    <GlassPanel key={i} className="flex items-center gap-5 group hover:border-emerald-600/30">
+                      <div className={`w-14 h-14 rounded-xl bg-${stat.color}-50 flex items-center justify-center text-${stat.color}-700 border border-${stat.color}-100 shadow-inner`}>
+                        <stat.icon size={26} />
                       </div>
-                      <div className="text-emerald-700 font-medium">Total Sessions</div>
-                    </div>
-                    <div className="bg-blue-50 rounded-lg p-6 text-center">
-                      <div className="text-3xl font-bold text-blue-600 mb-2">
-                        {appointments.filter(a => a.status === 'completed').length}
+                      <div>
+                        <p className="text-stone-500 text-xs font-bold uppercase tracking-wider mb-1">{stat.label}</p>
+                        <h3 className="text-3xl font-bold text-gray-900 serif">{stat.val}</h3>
                       </div>
-                      <div className="text-blue-700 font-medium">Completed</div>
-                    </div>
-                    <div className="bg-amber-50 rounded-lg p-6 text-center">
-                      <div className="text-3xl font-bold text-amber-600 mb-2">
-                        {new Set(appointments.map(a => a.therapyName)).size}
-                      </div>
-                      <div className="text-amber-700 font-medium">Therapy Types</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Appointments Section */}
-          {activeSection === "appointments" && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Your Appointments
-                </h2>
-                <span className="text-sm text-gray-500">User ID: {userId}</span>
-              </div>
-              {loading ? (
-                <div className="p-6">
-                  <p className="text-gray-500 text-center">
-                    Loading your appointments...
-                  </p>
+                    </GlassPanel>
+                  ))}
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Therapy
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Date & Time
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Duration
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Practitioner
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Status
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Notes
-                        </th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {appointments.length > 0 ? (
-                        appointments.map((appointment) => (
-                          <tr
-                            key={appointment.id}
-                            className="hover:bg-gray-50 transition-colors"
-                          >
-                            <td className="px-6 py-4 font-medium text-gray-900">
-                              {appointment.therapyName}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-gray-900">
-                                {appointment.date}
-                              </div>
-                              <div className="text-gray-600 text-sm flex items-center gap-1">
-                                <Clock size={14} />
-                                {appointment.time}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-gray-600">
-                              {appointment.duration}
-                            </td>
-                            <td className="px-6 py-4 text-gray-900">
-                              {appointment.practitioner}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                                  appointment.status
-                                )}`}
-                              >
-                                {appointment.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-gray-600 text-sm max-w-xs truncate">
-                              {appointment.notes || "No notes"}
-                            </td>
-                            <td className="px-6 py-4">
-                              <button
-                                className="text-emerald-600 hover:text-emerald-800 text-sm font-medium transition-colors"
-                                onClick={() => fetchAppointmentDetails(appointment.id)}
-                                disabled={modalLoading}
-                              >
-                                {modalLoading ? "Loading..." : "View Details"}
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td
-                            colSpan="7"
-                            className="px-6 py-8 text-center text-gray-500"
-                          >
-                            No appointments found for this user.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* Updated Therapies Section with Real API Data */}
-          {activeSection === "therapies" && (
-            <div className="p-8 min-h-screen bg-gradient-to-br from-emerald-50 via-amber-50 to-white rounded-xl shadow-sm border border-gray-200">
-              <div className="text-center mb-12">
-                <div className="flex items-center justify-center gap-2">
-                  <Leaf className="text-emerald-600" size={32} />
-                  <h1 className="text-5xl font-extrabold bg-gradient-to-r from-emerald-600 to-amber-600 bg-clip-text text-transparent">
-                    Therapies
-                  </h1>
-                </div>
-                <p className="mt-3 text-gray-600 text-lg">
-                  Explore our curated Panchakarma and Ayurveda therapies for
-                  healing, detox, and rejuvenation
-                </p>
-              </div>
-
-              {/* Show loading state or user ID info */}
-              {!userId && (
-                <div className="text-center py-8">
-                  <p className="text-red-600 font-medium">
-                    Please login to view therapies
-                  </p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                {loading ? (
-                  <div className="col-span-full text-center py-8">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-                    <p className="text-gray-500">Loading therapies...</p>
-                  </div>
-                ) : therapies.length === 0 ? (
-                  <div className="col-span-full text-center py-8">
-                    <p className="text-gray-500">
-                      No therapies found for this user.
-                    </p>
-                  </div>
-                ) : (
-                  therapies.map((therapy, i) => (
-                    <motion.div
-                      key={therapy._id || i}
-                      initial={{ opacity: 0, y: 40 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="rounded-2xl bg-white shadow-lg hover:shadow-2xl hover:-translate-y-1
-                        border border-emerald-100 hover:border-emerald-200 transition-all
-                        duration-300 flex flex-col"
-                    >
-                      <div className="p-6 flex flex-col flex-grow">
-                        <span className="text-xs font-semibold text-emerald-500 uppercase tracking-wide">
-                          {therapy.code || "AYU-THERAPY"}
-                        </span>
-
-                        <h2 className="text-2xl font-bold text-gray-900 mt-2 mb-4">
-                          {therapy.name}
-                        </h2>
-
-                        <p className="text-gray-600 text-sm flex-grow mb-5 leading-relaxed">
-                          {therapy.description || "No description available"}
-                        </p>
-
-                        <div className="flex justify-between items-center text-sm font-medium mb-5">
-                          <span className="flex items-center gap-1 text-emerald-700">
-                            <Clock size={18} /> {therapy.duration || "30"} min
-                          </span>
-                          <span className="flex items-center gap-1 text-amber-700">
-                            <IndianRupee size={18} /> ₹{therapy.price || "1000"}
-                          </span>
-                        </div>
-
-                        <p className="text-xs text-gray-400 mb-4">
-                          Added on{" "}
-                          {therapy.createdAt
-                            ? new Date(therapy.createdAt).toLocaleDateString()
-                            : "N/A"}
-                        </p>
-
-                        {/* Updated Book Appointment Button */}
-                        <button
-                          onClick={() => navigate(`/book/${therapy._id}`)}
-                          className="w-full flex items-center justify-center gap-2 rounded-xl py-3 px-4
-                            bg-gradient-to-r from-emerald-500 to-amber-500 text-white font-semibold
-                            shadow-md hover:shadow-lg hover:from-emerald-600 hover:to-amber-600
-                            transition-all duration-300"
-                        >
-                          <Calendar size={18} /> Book Appointment
+                <div className="grid lg:grid-cols-3 gap-8">
+                  {/* Appointments List */}
+                  <div className="lg:col-span-2 space-y-6">
+                    <GlassPanel className="min-h-[400px]">
+                      <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-2xl font-bold text-gray-900 serif">Upcoming Sessions</h3>
+                        <button onClick={() => setActiveSection('appointments')} className="text-sm font-bold text-emerald-800 hover:text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                          View All <ChevronRight size={16}/>
                         </button>
                       </div>
-                    </motion.div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Recommendations Section */}
-          {activeSection === "recommendations" && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                AI Recommendations
-              </h2>
-
-              <div className="flex flex-col items-center">
-                <img
-                  src="https://i.pinimg.com/1200x/8f/1c/19/8f1c191e824e0462dcbfd920553ba3a7.jpg"
-                  alt="AI Personalized Consultant"
-                  className="w-full max-w-2xl rounded-xl shadow-md mb-6"
-                />
-
-                <p className="text-gray-600 text-center text-lg max-w-xl mb-6">
-                  Discover personalized therapy suggestions designed to restore
-                  balance, relieve stress, and rejuvenate your body and mind
-                  through Ayurveda and Panchakarma practices.
-                </p>
-
-                {/* CTA Button */}
-                <button
-                  onClick={() => navigate("/ai-consultant")}
-                  className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-amber-500 
-                    text-white font-semibold rounded-xl shadow-md 
-                    hover:shadow-lg hover:from-emerald-600 hover:to-amber-600 
-                    transition-all duration-300"
-                >
-                  Get AI Consultant
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Health Info Section */}
-          {activeSection === "health" && <HealthInfo />}
-
-          {/* Settings Section */}
-          {activeSection === "settings" && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Settings</h2>
-              <div className="space-y-6">
-                <div className="border-b border-gray-200 pb-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Profile Settings</h3>
-                  <p className="text-gray-600">Manage your account information and preferences.</p>
-                </div>
-                <div className="border-b border-gray-200 pb-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Notification Settings</h3>
-                  <p className="text-gray-600">Control how you receive updates and reminders.</p>
-                </div>
-                <div className="border-b border-gray-200 pb-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Privacy Settings</h3>
-                  <p className="text-gray-600">Manage your data privacy and security preferences.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Help Section */}
-          {activeSection === "help" && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Help & Support</h2>
-              <div className="space-y-6">
-                <div className="bg-emerald-50 rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-emerald-900 mb-2">📞 Contact Support</h3>
-                  <p className="text-emerald-700">Call us at +91-XXXX-XXXXXX for immediate assistance.</p>
-                </div>
-                <div className="bg-blue-50 rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-blue-900 mb-2">📧 Email Support</h3>
-                  <p className="text-blue-700">Send us an email at support@ayursutra.com</p>
-                </div>
-                <div className="bg-amber-50 rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-amber-900 mb-2">❓ FAQ</h3>
-                  <p className="text-amber-700">Find answers to common questions about our therapies and services.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div>
-      </div>
-
-      {/* Appointment Details Modal */}
-      {showModal && selectedAppointment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex justify-between items-center p-6 border-b border-gray-200">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">Appointment Details</h3>
-                
-              </div>
-              <button
-                onClick={closeModal}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold transition-colors"
-              >
-                ×
-              </button>
-            </div>
-
-            {modalLoading ? (
-              <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-                <p className="text-gray-500">Loading appointment details...</p>
-              </div>
-            ) : (
-              <div className="p-6 space-y-6">
-                {/* Status Badge */}
-                <div className="flex justify-center">
-                  <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(selectedAppointment.status)}`}>
-                    {selectedAppointment.status?.toUpperCase()}
-                  </span>
-                </div>
-
-                {/* Therapy Information */}
-                <div className="bg-gradient-to-br from-emerald-50 to-amber-50 rounded-lg p-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Therapy Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Therapy Name</p>
-                      <p className="text-lg font-semibold text-gray-900">{selectedAppointment.therapyName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Duration</p>
-                      <p className="text-lg font-semibold text-gray-900">{selectedAppointment.duration}</p>
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-sm font-medium text-gray-600 mb-2">Description</p>
-                      <p className="text-gray-800 leading-relaxed">{selectedAppointment.therapyDescription}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Price</p>
-                      <p className="text-lg font-semibold text-emerald-600 flex items-center gap-1">
-                        <IndianRupee size={18} />
-                        {selectedAppointment.therapyPrice}
-                      </p>
-                    </div>
+                      
+                      <div className="space-y-4">
+                        {appointments.length > 0 ? appointments.slice(0, 3).map(appt => (
+                          <div key={appt.id} className="group flex flex-col sm:flex-row items-start sm:items-center p-5 rounded-2xl bg-white/40 border border-stone-100 hover:bg-white hover:shadow-lg hover:border-emerald-100 transition-all cursor-pointer" onClick={() => { setSelectedAppointment(appt); setShowModal(true); }}>
+                            <div className="w-16 h-16 rounded-2xl bg-stone-100 text-stone-700 flex flex-col items-center justify-center border border-stone-200 mr-5 mb-4 sm:mb-0 group-hover:bg-emerald-900 group-hover:text-white transition-colors">
+                              <span className="text-xs font-bold uppercase">{appt.date.split(' ')[1]}</span>
+                              <span className="text-xl font-bold serif">{appt.date.split(' ')[0]}</span>
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-lg font-bold text-gray-900 serif group-hover:text-emerald-800 transition-colors">{appt.title}</h4>
+                              <p className="text-stone-500 text-sm flex items-center gap-3 mt-1 font-medium">
+                                <span className="flex items-center gap-1"><Clock size={14} className="text-amber-600"/> {appt.time}</span>
+                                <span className="flex items-center gap-1"><User size={14} className="text-emerald-600"/> {appt.doctor}</span>
+                              </p>
+                            </div>
+                            <span className={`mt-3 sm:mt-0 px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(appt.status)}`}>
+                              {appt.status}
+                            </span>
+                          </div>
+                        )) : (
+                          <div className="text-center py-16 text-stone-400">
+                             <Calendar size={48} className="mx-auto mb-4 opacity-20"/>
+                             <p>No upcoming appointments</p>
+                          </div>
+                        )}
+                      </div>
+                    </GlassPanel>
                   </div>
-                </div>
 
-                {/* Schedule Information */}
-                <div className="bg-blue-50 rounded-lg p-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Schedule Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Date</p>
-                      <p className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                        <Calendar size={18} />
-                        {selectedAppointment.date}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Time</p>
-                      <p className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                        <Clock size={18} />
-                        {selectedAppointment.time} - {selectedAppointment.endTime}
-                      </p>
-                    </div>
+                  {/* Right Column Widgets */}
+                  <div className="space-y-6">
+                    {/* Featured Card */}
+                    <GlassPanel className="bg-emerald-900 text-white !border-emerald-800">
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                      <div className="relative z-10">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur text-emerald-100 text-xs font-bold mb-6 border border-white/20">
+                          <Sparkles size={12}/> Recommended
+                        </div>
+                        <h3 className="text-3xl font-bold mb-3 serif text-white">Shirodhara</h3>
+                        <p className="text-emerald-100/80 text-sm mb-8 leading-relaxed font-medium">
+                          Relieve mental stress and anxiety with our signature oil pouring therapy.
+                        </p>
+                        <button onClick={() => setActiveSection('therapies')} className="w-full py-4 bg-white text-emerald-900 rounded-xl font-bold hover:bg-amber-50 transition-colors shadow-lg">
+                          Book Now
+                        </button>
+                      </div>
+                    </GlassPanel>
+
+                    {/* Chart Preview */}
+                    <GlassPanel className="h-[240px] flex flex-col justify-center">
+                        <div className="flex justify-between items-center mb-4">
+                           <h4 className="text-sm font-bold text-stone-500 uppercase tracking-wider">Wellness Score</h4>
+                           <TrendingUp size={16} className="text-emerald-600"/>
+                        </div>
+                        <div className="h-full w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                             <AreaChart data={[{n:'1',v:40},{n:'2',v:60},{n:'3',v:55},{n:'4',v:80},{n:'5',v:70}]}>
+                                <defs>
+                                   <linearGradient id="colorV" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#059669" stopOpacity={0.2}/>
+                                      <stop offset="95%" stopColor="#059669" stopOpacity={0}/>
+                                   </linearGradient>
+                                </defs>
+                                <Area type="monotone" dataKey="v" stroke="#059669" strokeWidth={3} fillOpacity={1} fill="url(#colorV)" />
+                             </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                    </GlassPanel>
                   </div>
-                </div>
-
-                {/* Practitioner Information */}
-                <div className="bg-purple-50 rounded-lg p-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Practitioner Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Name</p>
-                      <p className="text-lg font-semibold text-gray-900">{selectedAppointment.practitioner}</p>
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <p className="text-sm font-medium text-gray-600">Specialization</p>
-                      <p className="text-gray-800">{selectedAppointment.practitionerSpecialization}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Notes Section */}
-                <div className="bg-yellow-50 rounded-lg p-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Notes</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Appointment Notes</p>
-                      <p className="text-gray-800">{selectedAppointment.notes || "No appointment notes"}</p>
-                    </div>
-                   
-                  </div>
-                </div>
-
-                
-              
-
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4">
-                  {selectedAppointment.status === 'scheduled' && (
-                    <button className="flex-1 bg-red-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-red-700 transition-colors">
-                      Cancel Appointment
-                    </button>
-                  )}
-                  {selectedAppointment.status === 'pending' && (
-                    <button className="flex-1 bg-emerald-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-emerald-700 transition-colors">
-                      Confirm Appointment
-                    </button>
-                  )}
-                  <button 
-                    onClick={closeModal}
-                    className="flex-1 bg-gray-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-700 transition-colors"
-                  >
-                    Close
-                  </button>
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
+
+            {/* --- THERAPIES --- */}
+            {activeSection === 'therapies' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {therapies.map((therapy, i) => (
+                  <GlassPanel key={i} className="p-0 flex flex-col group h-full hover:shadow-2xl hover:border-emerald-600/30 transition-all duration-500">
+                    <div className="h-56 bg-stone-200 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-tr from-emerald-100 to-amber-50 group-hover:scale-110 transition-transform duration-700"></div>
+                      <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                        <Leaf size={80} className="text-emerald-900"/>
+                      </div>
+                      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-xs font-bold shadow-sm text-emerald-900">
+                        {therapy.duration || 60} Min
+                      </div>
+                    </div>
+                    <div className="p-8 flex-1 flex flex-col">
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="text-xl font-bold text-gray-900 serif">{therapy.name}</h3>
+                        <p className="text-emerald-700 font-bold bg-emerald-50 px-2 py-1 rounded-md">₹{therapy.price}</p>
+                      </div>
+                      <p className="text-stone-600 text-sm mb-8 line-clamp-3 leading-relaxed font-medium">
+                        {therapy.description || "A holistic treatment designed to restore balance to your body and mind."}
+                      </p>
+                      <button onClick={() => navigate(`/book/${therapy._id}`)} className="mt-auto w-full py-4 bg-gray-900 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg">
+                        Book Session <ArrowRight size={18}/>
+                      </button>
+                    </div>
+                  </GlassPanel>
+                ))}
+              </div>
+            )}
+
+            {/* --- APPOINTMENTS LIST VIEW --- */}
+            {activeSection === 'appointments' && (
+              <GlassPanel className="min-h-[600px]">
+                <div className="flex justify-between items-center mb-8 pb-6 border-b border-stone-200">
+                  <h3 className="text-3xl font-bold text-gray-900 serif">My Appointments</h3>
+                  <div className="flex gap-2">
+                    <span className="px-4 py-2 bg-emerald-100 text-emerald-800 rounded-lg text-sm font-bold">Upcoming</span>
+                    <span className="px-4 py-2 bg-white border border-stone-200 text-stone-500 rounded-lg text-sm font-bold cursor-pointer hover:bg-stone-50 transition-colors">History</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  {appointments.map(appt => (
+                    <div key={appt.id} className="flex flex-col md:flex-row items-center p-6 bg-white/50 border border-stone-200 rounded-2xl shadow-sm hover:shadow-xl transition-all gap-6 group">
+                      <div className="flex flex-col items-center justify-center w-20 h-20 bg-stone-100 rounded-2xl border border-stone-200 text-stone-600 group-hover:bg-emerald-900 group-hover:text-white transition-colors">
+                        <span className="text-xs font-bold uppercase">{appt.date.split(' ')[1]}</span>
+                        <span className="text-2xl font-bold serif">{appt.date.split(' ')[0]}</span>
+                      </div>
+                      
+                      <div className="flex-1 text-center md:text-left">
+                        <h4 className="text-xl font-bold text-gray-900 mb-2 serif">{appt.title}</h4>
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-stone-500 font-medium">
+                          <span className="flex items-center gap-1"><Clock size={16} className="text-amber-600"/> {appt.time}</span>
+                          <span className="flex items-center gap-1"><User size={16} className="text-emerald-600"/> {appt.doctor}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <span className={`px-4 py-2 rounded-xl text-xs font-bold border ${getStatusColor(appt.status)}`}>
+                          {appt.status.toUpperCase()}
+                        </span>
+                        <button onClick={() => { setSelectedAppointment(appt); setShowModal(true); }} className="p-3 bg-white border border-stone-200 rounded-xl hover:bg-emerald-50 hover:text-emerald-700 transition-colors text-stone-600 shadow-sm">
+                          <ChevronRight size={20} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {appointments.length === 0 && <div className="text-center py-20 text-stone-400 font-medium">No appointments found.</div>}
+                </div>
+              </GlassPanel>
+            )}
+
+            {/* --- OTHER SECTIONS --- */}
+            {activeSection === 'health' && <HealthInfo />}
+            
+            {activeSection === 'ai' && (
+              <GlassPanel className="flex flex-col items-center justify-center text-center py-24">
+                <div className="w-24 h-24 bg-gradient-to-tr from-emerald-800 to-emerald-600 rounded-full flex items-center justify-center mb-8 shadow-xl shadow-emerald-900/20">
+                  <Lightbulb size={40} className="text-white" />
+                </div>
+                <h2 className="text-4xl font-bold text-gray-900 mb-4 serif">Vaidya AI Consultant</h2>
+                <p className="text-stone-600 max-w-lg mb-10 text-lg leading-relaxed">
+                  Get personalized health insights based on your Prakriti and current lifestyle. Our AI analyzes ancient texts to give you modern advice.
+                </p>
+                <button onClick={() => navigate("/ai-consultant")} className="px-10 py-4 bg-gray-900 text-white rounded-full font-bold hover:bg-emerald-700 hover:scale-105 transition-all shadow-xl">
+                  Start Analysis
+                </button>
+              </GlassPanel>
+            )}
+
+          </motion.div>
+        </AnimatePresence>
+      </main>
+
+      {/* --- DETAILS MODAL --- */}
+      <AnimatePresence>
+        {showModal && selectedAppointment && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-md"
+            onClick={() => setShowModal(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-white/50"
+            >
+              <div className="bg-emerald-900 p-8 text-white flex justify-between items-start relative overflow-hidden">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                <div className="relative z-10">
+                  <h3 className="text-3xl font-bold mb-2 serif">{selectedAppointment.title}</h3>
+                  <div className="flex gap-2">
+                     <span className="px-2 py-1 bg-emerald-800 rounded text-xs font-bold tracking-wide uppercase border border-emerald-700">{selectedAppointment.status}</span>
+                  </div>
+                </div>
+                <button onClick={() => setShowModal(false)} className="bg-white/10 p-2 rounded-full hover:bg-white/20 transition-colors relative z-10">
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="p-8 space-y-6">
+                <div className="flex items-center gap-5 p-5 bg-stone-50 rounded-2xl border border-stone-100">
+                   <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-emerald-800 shadow-sm font-bold border border-stone-200">
+                      <User size={24}/>
+                   </div>
+                   <div>
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">Practitioner</p>
+                      <p className="font-bold text-gray-900 text-xl serif">{selectedAppointment.doctor}</p>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="p-5 bg-white border border-stone-200 rounded-2xl text-center">
+                      <Calendar size={24} className="mx-auto mb-3 text-amber-600"/>
+                      <p className="font-bold text-gray-900">{selectedAppointment.date}</p>
+                   </div>
+                   <div className="p-5 bg-white border border-stone-200 rounded-2xl text-center">
+                      <Clock size={24} className="mx-auto mb-3 text-emerald-600"/>
+                      <p className="font-bold text-gray-900">{selectedAppointment.time}</p>
+                   </div>
+                </div>
+
+                <div>
+                   <p className="text-xs text-stone-400 font-bold uppercase mb-3 tracking-wider">Instructions</p>
+                   <p className="text-stone-600 text-sm leading-relaxed font-medium">
+                      {selectedAppointment.description || "Please arrive 15 minutes early. Wear loose, comfortable clothing for the therapy. Do not consume heavy food 2 hours prior to the session."}
+                   </p>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-stone-100 bg-stone-50 flex gap-4">
+                 <button onClick={() => setShowModal(false)} className="flex-1 py-3 bg-white border border-stone-300 text-stone-700 font-bold rounded-xl hover:bg-stone-100 transition-colors shadow-sm">Close</button>
+                 <button className="flex-1 py-3 bg-emerald-800 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-md">Reschedule</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };
