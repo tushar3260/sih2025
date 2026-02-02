@@ -67,9 +67,9 @@ const App = () => {
           <Route
             path="/record"
             element={
-              <ProtectedRoute>
+              
                 <Record />
-              </ProtectedRoute>
+              
             }
           />
           <Route path="/practitioner-setup" element={<PractitionerForm />} />

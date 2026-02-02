@@ -1,300 +1,253 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Leaf, Mail, Lock, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, Suspense } from 'react';
+import { 
+  Eye, EyeOff, Leaf, Mail, Lock, ArrowRight, User, 
+  Shield, Loader2, CheckCircle2, ArrowLeft 
+} from 'lucide-react';
 import axios from 'axios';
-import { Navigate, Link } from "react-router-dom"; // Added Link for better routing if needed, though window.location is preserved
+import { motion, AnimatePresence } from 'framer-motion';
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Float, Environment, MeshTransmissionMaterial } from "@react-three/drei";
+import { Navigate } from "react-router-dom";
 import { useUser } from "../context/userContext"; 
+import * as THREE from "three";
+
+// --- 1. Global Styles & Theme (Shared) ---
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+    
+    :root {
+      --color-bg: #F5F5F4;
+      --color-text-main: #1C1917;
+      --color-primary: #064E3B;
+    }
+
+    body { font-family: 'Manrope', sans-serif; background-color: var(--color-bg); color: var(--color-text-main); }
+    h1, h2, h3, h4, .serif { font-family: 'Playfair Display', serif; }
+    
+    .glass-card {
+      background: rgba(255, 255, 255, 0.75); 
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+    }
+  `}</style>
+);
+
+// --- 2. 3D Background (Prana Flow) ---
+const OrganicFluid = () => {
+  const meshRef = useRef();
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime() * 0.2;
+    if (meshRef.current) {
+      meshRef.current.rotation.x = Math.sin(t) * 0.3;
+      meshRef.current.rotation.y = Math.cos(t * 0.8) * 0.3;
+      meshRef.current.position.y = Math.sin(t * 0.5) * 0.2;
+    }
+  });
+
+  return (
+    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5} position={[2, 0, -2]}>
+      <mesh ref={meshRef} scale={[3.5, 3.5, 3.5]}>
+        <icosahedronGeometry args={[1, 6]} /> 
+        <MeshTransmissionMaterial
+          backside
+          samples={6}
+          thickness={2}
+          chromaticAberration={0.03}
+          anisotropy={0.1}
+          distortion={0.5}
+          distortionScale={0.5}
+          temporalDistortion={0.1}
+          iridescence={0.3}
+          color={new THREE.Color("#065f46")}
+          bg={new THREE.Color("#F5F5F4")}
+          transmission={0.9}
+          roughness={0.2}
+        />
+      </mesh>
+    </Float>
+  );
+};
+
+const Scene = () => (
+  <div className="fixed inset-0 z-0 w-full h-full pointer-events-none">
+    <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
+      <ambientLight intensity={0.8} color="#e7e5e4" />
+      <spotLight position={[10, 10, 10]} angle={0.3} penumbra={1} intensity={1} color="#fff" />
+      <Suspense fallback={null}>
+        <OrganicFluid />
+        <Environment preset="city" blur={0.8} /> 
+      </Suspense>
+    </Canvas>
+  </div>
+);
+
+// --- 3. UI Components ---
+const GlassInput = ({ icon: Icon, ...props }) => (
+  <div className="relative group">
+    {Icon && <Icon className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/50 group-focus-within:text-emerald-700 transition-colors" size={18} />}
+    <input 
+      {...props}
+      className={`w-full bg-white/50 border border-stone-200 rounded-xl py-3.5 ${Icon ? 'pl-12' : 'pl-4'} pr-4 text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-700 focus:bg-white transition-all shadow-sm`}
+    />
+  </div>
+);
 
 const LoginPage = () => {
   const { user, setUser } = useUser();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [rememberMe, setRememberMe] = useState(false);
 
-  // --- LOGIC SECTION (Unchanged) ---
+  // Redirect if already logged in
   if (user) {
     return <Navigate to={user.role === "practitioner" ? "/doctor-dashboard" : "/dashboard"} replace />;
   }
 
   const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    if (message.text) {
-      setMessage({ type: '', text: '' });
-    }
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setMessage({ type: '', text: '' });
   };
 
   const validateForm = () => {
-    if (!formData.email.trim()) {
-      setMessage({ type: 'error', text: 'Email is required' });
-      return false;
-    }
-    if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      setMessage({ type: 'error', text: 'Please enter a valid email address' });
-      return false;
-    }
-    if (!formData.password.trim()) {
-      setMessage({ type: 'error', text: 'Password is required' });
-      return false;
-    }
-    if (formData.password.length < 6) {
-      setMessage({ type: 'error', text: 'Password must be at least 6 characters' });
-      return false;
-    }
+    if (!formData.email.trim()) return setMessage({ type: 'error', text: 'Email is required' });
+    if (!formData.password.trim()) return setMessage({ type: 'error', text: 'Password is required' });
     return true;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!validateForm()) return;
 
     setIsLoading(true);
-    setMessage({ type: '', text: '' });
-
     try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/user/login`,
-        formData
-      );
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/user/login`, formData);
 
       if (response.data.success) {
         setUser(response.data.user);
         localStorage.setItem("user", JSON.stringify(response.data.user));
         localStorage.setItem("token", response.data.token);
-        setMessage({ type: 'success', text: response.data.message || 'Login successful! Redirecting...' });
+        setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
       } else {
-        setMessage({ type: 'error', text: response.data.message || 'Invalid email or password. Please try again.' });
+        setMessage({ type: 'error', text: response.data.message || 'Invalid credentials.' });
       }
-
     } catch (error) {
-      console.error(error);
-      setMessage({
-        type: 'error',
-        text: error.response?.data?.message || 'Something went wrong. Please try again.'
-      });
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Something went wrong.' });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleForgotPassword = () => {
-    if (!formData.email.trim()) {
-      setMessage({ type: 'error', text: 'Please enter your email address first' });
-      return;
-    }
-    if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      setMessage({ type: 'error', text: 'Please enter a valid email address' });
-      return;
-    }
-    setMessage({ type: 'success', text: 'Password reset link sent to your email!' });
+    if (!formData.email) return setMessage({ type: 'error', text: 'Enter email first.' });
+    setMessage({ type: 'success', text: 'Reset link sent!' });
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSubmit();
-    }
-  };
-
-  // --- RENDER SECTION (Redesigned) ---
   return (
-    <div className="min-h-screen w-full flex bg-white font-sans selection:bg-green-100">
+    <div className="min-h-screen w-full bg-[#F5F5F4] flex items-center justify-center relative overflow-hidden selection:bg-emerald-200 selection:text-emerald-900">
+      <GlobalStyles />
+      <Scene />
       
-      {/* LEFT SIDE: Visual Panel (Hidden on Mobile) */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-green-700 via-emerald-600 to-teal-500 overflow-hidden text-white items-center justify-center p-12">
-        {/* Abstract Background Shapes */}
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
-             <path d="M0 100 C 20 0 50 0 100 100 Z" fill="currentColor" />
-           </svg>
-        </div>
-        <div className="absolute top-10 right-10 w-32 h-32 bg-yellow-300 rounded-full blur-[80px] opacity-40 animate-pulse"></div>
-        <div className="absolute bottom-10 left-10 w-40 h-40 bg-teal-200 rounded-full blur-[80px] opacity-30"></div>
-
-        {/* Content */}
-        <div className="relative z-10 max-w-lg text-center lg:text-left">
-          <div className="mb-6 inline-flex p-3 bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 shadow-xl">
-             <Leaf className="w-8 h-8 text-white" />
-          </div>
-          <h2 className="text-4xl font-bold mb-6 leading-tight">
-            Holistic health, <br/> simplified for you.
-          </h2>
-          <p className="text-lg text-green-50/90 leading-relaxed mb-8">
-            Manage your wellness journey, connect with practitioners, and track your progress all in one secure place.
-          </p>
-          
-          {/* Testimonial / Stat Card */}
-          <div className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl border border-white/20">
-            <div className="flex items-center gap-4">
-               <div className="flex -space-x-3">
-                 {[1,2,3].map(i => (
-                   <div key={i} className={`w-10 h-10 rounded-full border-2 border-green-600 bg-green-${i*100} flex items-center justify-center text-xs font-bold text-green-800`}>
-                      U{i}
-                   </div>
-                 ))}
-               </div>
-               <div>
-                 <p className="font-bold">Trusted by Users</p>
-                 <p className="text-sm opacity-80">Join our growing community today.</p>
-               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* RIGHT SIDE: Form Area */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative bg-gradient-to-br from-green-50/50 via-white to-amber-50/30 lg:bg-none">
+      <div className="relative z-10 w-full max-w-5xl px-6 grid md:grid-cols-2 gap-12 items-center">
         
-        {/* Mobile-only background blobs to keep the theme */}
-        <div className="lg:hidden absolute inset-0 overflow-hidden pointer-events-none">
-           <div className="absolute -top-10 -right-10 w-60 h-60 bg-green-200/30 rounded-full blur-3xl" />
-           <div className="absolute bottom-0 left-0 w-60 h-60 bg-amber-200/30 rounded-full blur-3xl" />
+        {/* Left: Brand/Context (Desktop Only) */}
+        <div className="hidden md:block space-y-6">
+           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100/80 border border-emerald-200 text-emerald-900 text-xs font-bold uppercase tracking-widest shadow-sm">
+              <Leaf size={12} /> Welcome Back
+           </div>
+           <h1 className="text-6xl font-bold text-stone-900 serif leading-tight">
+              Continue your path to <span className="text-emerald-800 italic">balance.</span>
+           </h1>
+           <p className="text-stone-600 text-lg max-w-md font-medium leading-relaxed">
+              Sign in to access your personalized wellness dashboard, track your progress, and consult with experts.
+           </p>
+           
+           <div className="flex items-center gap-4 text-sm font-bold text-stone-500 pt-8">
+              <div className="flex -space-x-3">
+                 {[1,2,3].map(i => (
+                    <div key={i} className="w-10 h-10 rounded-full border-2 border-[#F5F5F4] bg-stone-200 flex items-center justify-center text-xs">User</div>
+                 ))}
+              </div>
+              <p>Trusted by 10,000+ users.</p>
+           </div>
         </div>
 
-        <div className="w-full max-w-md space-y-8 relative z-10">
-          
-          {/* Mobile Logo Header */}
-          <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex bg-green-600 p-2 rounded-xl shadow-lg mb-4">
-               <Leaf className="w-6 h-6 text-white" />
-            </div>
+        {/* Right: Login Card */}
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }} 
+          animate={{ opacity: 1, x: 0 }} 
+          transition={{ duration: 0.5 }}
+          className="glass-card p-8 md:p-10 rounded-3xl"
+        >
+          <div className="mb-8 text-center md:text-left">
+             <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-900 flex items-center justify-center text-white">
+                   <Leaf size={16} fill="currentColor" />
+                </div>
+                <span className="text-xl font-bold serif text-emerald-900">AyurSutra</span>
+             </div>
+             <h2 className="text-2xl font-bold text-stone-900">Sign In</h2>
+             <p className="text-stone-500 text-sm mt-1">Welcome back to your dashboard</p>
           </div>
 
-          <div className="text-center lg:text-left">
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Welcome Back</h1>
-            <p className="mt-2 text-sm text-gray-500">
-              Please enter your details to sign in.
-            </p>
-          </div>
-
-          {/* Feedback Messages */}
-          {message.text && (
-            <div className={`p-4 rounded-xl flex items-start gap-3 text-sm animate-in fade-in slide-in-from-top-2 duration-300 ${
-              message.type === 'success' 
-                ? 'bg-green-50 text-green-800 border border-green-200' 
-                : message.type === 'info'
-                ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
-            }`}>
-              {message.type === 'success' ? <CheckCircle className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
-              <span className="font-medium pt-0.5">{message.text}</span>
-            </div>
-          )}
-
-          <form onSubmit={e => { e.preventDefault(); handleSubmit(); }} className="space-y-6">
-            
-            <div className="space-y-5">
-              {/* Email */}
-              <div className="group">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5 ml-1">Email Address</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-gray-400 group-focus-within:text-green-600 transition-colors" />
-                  </div>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    onKeyPress={handleKeyPress}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 focus:bg-white transition-all duration-200 sm:text-sm"
-                    placeholder="you@example.com"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div className="group">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5 ml-1">Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-green-600 transition-colors" />
-                  </div>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    onKeyPress={handleKeyPress}
-                    className="block w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 focus:bg-white transition-all duration-200 sm:text-sm"
-                    placeholder="••••••••"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-green-600 transition-colors cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center cursor-pointer group">
-                <div className="relative flex items-center">
-                    <input 
-                    type="checkbox" 
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="peer h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500 cursor-pointer" 
-                    />
-                </div>
-                <span className="ml-2 text-sm text-gray-600 group-hover:text-gray-800 transition-colors">Remember me</span>
-              </label>
-
-              <button 
-                type="button" 
-                onClick={handleForgotPassword}
-                className="text-sm font-semibold text-green-600 hover:text-green-700 hover:underline decoration-2 underline-offset-2 transition-all"
+          {/* Error/Success Message */}
+          <AnimatePresence>
+            {message.text && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className={`mb-6 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-800 border border-emerald-100'}`}
               >
-                Forgot Password?
-              </button>
+                 {message.type === 'error' ? <Shield size={16}/> : <CheckCircle2 size={16}/>}
+                 {message.text}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-4">
+               <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">Email</label>
+                  <GlassInput icon={Mail} type="email" name="email" placeholder="you@example.com" value={formData.email} onChange={handleInputChange} />
+               </div>
+               
+               <div className="space-y-1">
+                  <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">Password</label>
+                  <div className="relative">
+                     <GlassInput icon={Lock} type={showPassword ? "text" : "password"} name="password" placeholder="••••••••" value={formData.password} onChange={handleInputChange} />
+                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
+                        {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                     </button>
+                  </div>
+               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent rounded-xl shadow-lg shadow-green-600/20 text-sm font-bold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-70 disabled:cursor-not-allowed transform hover:-translate-y-0.5 transition-all duration-200"
-            >
-              {isLoading ? (
-                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              ) : (
-                <>
-                  Sign In <ArrowRight className="w-4 h-4" />
-                </>
-              )}
+            <div className="flex items-center justify-between text-sm">
+               <label className="flex items-center gap-2 cursor-pointer text-stone-600 hover:text-stone-800 transition-colors">
+                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-500"/>
+                  Remember me
+               </label>
+               <button type="button" onClick={handleForgotPassword} className="font-bold text-emerald-700 hover:underline">Forgot Password?</button>
+            </div>
+
+            <button type="submit" disabled={isLoading} className="w-full bg-emerald-900 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-800 transition-all shadow-lg disabled:opacity-70 disabled:cursor-not-allowed">
+               {isLoading ? <Loader2 className="animate-spin" size={20}/> : <>Sign In <ArrowRight size={18}/></>}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-gray-100">
-             <div className="flex items-center justify-center gap-1.5 text-sm">
-                <span className="text-gray-600">Don't have an account?</span>
-                <button 
-                    onClick={() => { window.location.href = "/register" }}
-                    className="font-bold text-green-600 hover:text-green-700 transition-colors"
-                >
-                    Create Account
-                </button>
-             </div>
+          <div className="mt-8 text-center pt-6 border-t border-stone-200/60">
+             <p className="text-sm text-stone-500 font-medium">
+                Don't have an account? <a href="/register" className="text-emerald-800 font-bold hover:underline">Create Account</a>
+             </p>
           </div>
-          
-          {/* Footer Links */}
-           <div className="flex justify-center gap-4 mt-6 text-xs text-gray-400">
-                <button className="hover:text-green-600 transition-colors">Privacy</button>
-                <span>•</span>
-                <button className="hover:text-green-600 transition-colors">Terms</button>
-           </div>
 
-        </div>
+        </motion.div>
       </div>
     </div>
   );
 };
+
 export default LoginPage;

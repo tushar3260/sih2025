@@ -1,15 +1,101 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Leaf, Mail, Lock, ArrowRight, User, Phone, Shield } from 'lucide-react';
+import React, { useState, useRef, Suspense } from 'react';
+import { 
+  Eye, EyeOff, Leaf, Mail, Lock, ArrowRight, User, 
+  Phone, Shield, Loader2, CheckCircle2, ArrowLeft 
+} from 'lucide-react';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Float, Environment, MeshTransmissionMaterial } from "@react-three/drei";
+import * as THREE from "three";
+
+// --- 1. Global Styles & Theme ---
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+    
+    :root {
+      --color-bg: #F5F5F4;
+      --color-text-main: #1C1917;
+      --color-primary: #064E3B;
+    }
+
+    body { font-family: 'Manrope', sans-serif; background-color: var(--color-bg); color: var(--color-text-main); }
+    h1, h2, h3, h4, .serif { font-family: 'Playfair Display', serif; }
+    
+    .glass-card {
+      background: rgba(255, 255, 255, 0.75); 
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+    }
+  `}</style>
+);
+
+// --- 2. 3D Background (Prana Flow) ---
+const OrganicFluid = () => {
+  const meshRef = useRef();
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime() * 0.2;
+    if (meshRef.current) {
+      meshRef.current.rotation.x = Math.sin(t) * 0.3;
+      meshRef.current.rotation.y = Math.cos(t * 0.8) * 0.3;
+      meshRef.current.position.y = Math.sin(t * 0.5) * 0.2;
+    }
+  });
+
+  return (
+    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5} position={[2, 0, -2]}>
+      <mesh ref={meshRef} scale={[3.5, 3.5, 3.5]}>
+        <icosahedronGeometry args={[1, 6]} /> 
+        <MeshTransmissionMaterial
+          backside
+          samples={6}
+          thickness={2}
+          chromaticAberration={0.03}
+          anisotropy={0.1}
+          distortion={0.5}
+          distortionScale={0.5}
+          temporalDistortion={0.1}
+          iridescence={0.3}
+          color={new THREE.Color("#065f46")}
+          bg={new THREE.Color("#F5F5F4")}
+          transmission={0.9}
+          roughness={0.2}
+        />
+      </mesh>
+    </Float>
+  );
+};
+
+const Scene = () => (
+  <div className="fixed inset-0 z-0 w-full h-full pointer-events-none">
+    <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
+      <ambientLight intensity={0.8} color="#e7e5e4" />
+      <spotLight position={[10, 10, 10]} angle={0.3} penumbra={1} intensity={1} color="#fff" />
+      <Suspense fallback={null}>
+        <OrganicFluid />
+        <Environment preset="city" blur={0.8} /> 
+      </Suspense>
+    </Canvas>
+  </div>
+);
+
+// --- 3. UI Components ---
+const GlassInput = ({ icon: Icon, ...props }) => (
+  <div className="relative group">
+    {Icon && <Icon className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/50 group-focus-within:text-emerald-700 transition-colors" size={18} />}
+    <input 
+      {...props}
+      className={`w-full bg-white/50 border border-stone-200 rounded-xl py-3.5 ${Icon ? 'pl-12' : 'pl-4'} pr-4 text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-700 focus:bg-white transition-all shadow-sm`}
+    />
+  </div>
+);
 
 const SignupPage = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    role: 'patient',
-    password: '',
-    confirmPassword: ''
+    name: '', email: '', phone: '', role: 'patient', password: '', confirmPassword: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -23,68 +109,31 @@ const SignupPage = () => {
   };
 
   const validateForm = () => {
-    if (!formData.name.trim()) {
-      setMessage({ type: 'error', text: 'Name is required' });
-      return false;
-    }
-    if (!formData.email.trim()) {
-      setMessage({ type: 'error', text: 'Email is required' });
-      return false;
-    }
-    if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      setMessage({ type: 'error', text: 'Please enter a valid email' });
-      return false;
-    }
-    if (formData.password.length < 8) {
-      setMessage({ type: 'error', text: 'Password must be at least 8 characters' });
-      return false;
-    }
-    if (formData.password !== formData.confirmPassword) {
-      setMessage({ type: 'error', text: 'Passwords do not match' });
-      return false;
-    }
+    if (!formData.name.trim()) return setMessage({ type: 'error', text: 'Name is required' });
+    if (!formData.email.trim() || !/\S+@\S+\.\S+/.test(formData.email)) return setMessage({ type: 'error', text: 'Valid email is required' });
+    if (formData.password.length < 8) return setMessage({ type: 'error', text: 'Password must be 8+ chars' });
+    if (formData.password !== formData.confirmPassword) return setMessage({ type: 'error', text: 'Passwords do not match' });
     return true;
   };
 
-  
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
     setIsLoading(true);
-    setMessage({ type: '', text: '' });
-
     try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/user/register`,
-        formData
-      );
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/user/register`, formData);
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      console.log('API response:', response.data);
-      const k =JSON.parse(localStorage.getItem('user'));
-
+      
       if (response.data.success) {
-        setMessage({ type: 'success', text: response.data.message || 'Account created successfully!' });
-        
-        // Use React Router navigation
+        setMessage({ type: 'success', text: 'Account created! Redirecting...' });
         setTimeout(() => {
-          if(k.role==="practitioner"){
-            window.location.href = '/practitioner-setup';
-          }
-          else{
-            window.location.href = '/dashboard';
-          }
+          window.location.href = response.data.user.role === "practitioner" ? '/practitioner-setup' : '/dashboard';
         }, 1500);
-
       } else {
-        setMessage({ type: 'error', text: response.data.message || 'Registration failed. Please try again.' });
+        setMessage({ type: 'error', text: response.data.message || 'Registration failed.' });
       }
     } catch (error) {
-      console.error('API error:', error);
-      setMessage({
-        type: 'error',
-        text: error.response?.data?.message || 'Something went wrong. Please try again.'
-      });
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Something went wrong.' });
     } finally {
       setIsLoading(false);
     }
@@ -92,204 +141,163 @@ const SignupPage = () => {
 
   const nextStep = () => {
     if (currentStep === 1) {
-      if (!formData.name.trim() || !formData.email.trim()) {
-        setMessage({ type: 'error', text: 'Please fill in all required fields' });
-        return;
-      }
-      if (!/\S+@\S+\.\S+/.test(formData.email)) {
-        setMessage({ type: 'error', text: 'Please enter a valid email address' });
-        return;
-      }
+      if (!formData.name.trim() || !formData.email.trim()) return setMessage({ type: 'error', text: 'Please fill all fields' });
     }
-    if (currentStep < 2) setCurrentStep(currentStep + 1);
-  };
-
-  const prevStep = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
+    if (currentStep < 2) setCurrentStep(prev => prev + 1);
     setMessage({ type: '', text: '' });
   };
 
   return (
-    <div className="min-h-screen min-w-screen bg-gradient-to-br from-green-50 via-white to-amber-50 flex items-center justify-center p-3 relative">
-      {/* Background circles */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-16 left-8 w-24 h-24 bg-green-200/20 rounded-full animate-pulse"></div>
-        <div className="absolute top-32 right-16 w-20 h-20 bg-amber-200/30 rounded-full animate-bounce"></div>
-        <div className="absolute bottom-16 left-16 w-16 h-16 bg-green-300/25 rounded-full animate-ping"></div>
-        <div className="absolute bottom-32 right-8 w-12 h-12 bg-amber-300/20 rounded-full animate-pulse"></div>
-      </div>
-
-      <div className="relative z-10 w-full max-w-sm">
-        <div className="bg-white/90 backdrop-blur-lg rounded-2xl shadow-2xl p-6 border border-white/30">
-          {/* Header */}
-          <div className="text-center mb-6">
-            <div className="flex justify-center mb-3">
-              <div className="bg-gradient-to-br from-green-500 to-green-600 p-2 rounded-xl shadow-lg">
-                <Leaf className="w-6 h-6 text-white" />
+    <div className="min-h-screen w-full bg-[#F5F5F4] flex items-center justify-center relative overflow-hidden selection:bg-emerald-200 selection:text-emerald-900">
+      <GlobalStyles />
+      <Scene />
+      
+      <div className="relative z-10 w-full max-w-5xl px-6 grid md:grid-cols-2 gap-12 items-center">
+        
+        {/* Left: Brand/Context (Desktop Only) */}
+        <div className="hidden md:block space-y-6">
+           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100/80 border border-emerald-200 text-emerald-900 text-xs font-bold uppercase tracking-widest shadow-sm">
+              <Leaf size={12} /> Join AyurSutra
+           </div>
+           <h1 className="text-6xl font-bold text-stone-900 serif leading-tight">
+              Begin your journey to <span className="text-emerald-800 italic">holistic wellness.</span>
+           </h1>
+           <p className="text-stone-600 text-lg max-w-md font-medium leading-relaxed">
+              Create an account to access personalized Ayurveda plans, expert practitioners, and AI-driven insights.
+           </p>
+           
+           <div className="flex items-center gap-4 text-sm font-bold text-stone-500 pt-8">
+              <div className="flex -space-x-3">
+                 {[1,2,3].map(i => (
+                    <div key={i} className="w-10 h-10 rounded-full border-2 border-[#F5F5F4] bg-stone-200 flex items-center justify-center text-xs">User</div>
+                 ))}
               </div>
-            </div>
-            <h1 className="text-xl font-bold text-gray-800 mb-1">Join AyurVeda</h1>
-            <p className="text-sm text-gray-600">Begin your wellness transformation</p>
-          </div>
-
-          {/* Message Display */}
-          {message.text && (
-            <div className={`mb-4 p-3 rounded-lg text-xs font-medium ${
-              message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-            }`}>
-              {message.text}
-            </div>
-          )}
-
-          {/* Progress Indicator */}
-          <div className="flex justify-center mb-6">
-            <div className="flex space-x-2">
-              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${currentStep >= 1 ? 'bg-green-600' : 'bg-gray-200'}`}></div>
-              <div className={`w-2 h-2 rounded-full transition-all duration-300 ${currentStep >= 2 ? 'bg-green-600' : 'bg-gray-200'}`}></div>
-            </div>
-          </div>
-
-          {/* Step 1 */}
-          {currentStep === 1 && (
-            <div className="space-y-4">
-              {/* Name */}
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700 flex items-center space-x-1">
-                  <User className="w-4 h-4 text-green-600" /> <span>Full Name *</span>
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2.5 text-sm border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none transition-all duration-300 bg-white shadow-sm"
-                  placeholder="Enter your full name"
-                  required
-                />
-              </div>
-
-              {/* Email */}
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700 flex items-center space-x-1">
-                  <Mail className="w-4 h-4 text-green-600" /> <span>Email Address *</span>
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2.5 text-sm border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none transition-all duration-300 bg-white shadow-sm"
-                  placeholder="Enter your email"
-                  required
-                />
-              </div>
-
-              {/* Phone */}
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700 flex items-center space-x-1">
-                  <Phone className="w-4 h-4 text-green-600" /> <span>Phone Number</span>
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2.5 text-sm border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none transition-all duration-300 bg-white shadow-sm"
-                  placeholder="+91 98765 43210"
-                />
-              </div>
-
-              {/* Role */}
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700 flex items-center space-x-1">
-                  <Shield className="w-4 h-4 text-green-600" /> <span>Account Type</span>
-                </label>
-                <select
-                  name="role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2.5 text-sm border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none transition-all duration-300 bg-white shadow-sm"
-                >
-                  <option value="patient">Patient - Seeking Wellness</option>
-                  <option value="practitioner">Practitioner - Ayurveda Expert</option>
-                  <option value="admin">Admin - System Administrator</option>
-                </select>
-              </div>
-
-              <button
-                onClick={nextStep}
-                className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-2.5 text-sm rounded-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all duration-300 flex items-center justify-center space-x-2"
-              >
-                <span>Continue</span> <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Step 2 */}
-          {currentStep === 2 && (
-            <div className="space-y-4">
-              {/* Password & Confirm */}
-              {['password', 'confirmPassword'].map((field,i) => (
-                <div key={field} className="space-y-1">
-                  <label className="text-sm font-medium text-gray-700 flex items-center space-x-1">
-                    <Lock className="w-4 h-4 text-green-600" /> <span>{field === 'password' ? 'Password *' : 'Confirm Password *'}</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={field === 'password' ? (showPassword ? 'text' : 'password') : (showConfirmPassword ? 'text' : 'password')}
-                      name={field}
-                      value={formData[field]}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2.5 pr-10 text-sm border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none transition-all duration-300 bg-white shadow-sm"
-                      placeholder={field === 'password' ? 'Create a strong password' : 'Confirm your password'}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => field === 'password' ? setShowPassword(!showPassword) : setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-green-600 transition-colors"
-                    >
-                      {field === 'password' ? (showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />) :
-                        (showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />)}
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {/* Password Requirements */}
-              <div className="bg-green-50 rounded-lg p-3 border border-green-100">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Password Requirements:</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li className={`flex items-center space-x-2`}><div className={`w-2 h-2 rounded-full ${formData.password.length >= 8 ? 'bg-green-500' : 'bg-gray-300'}`}></div><span>At least 8 characters</span></li>
-                  <li className={`flex items-center space-x-2`}><div className={`w-2 h-2 rounded-full ${/[A-Z]/.test(formData.password) ? 'bg-green-500' : 'bg-gray-300'}`}></div><span>One uppercase letter</span></li>
-                  <li className={`flex items-center space-x-2`}><div className={`w-2 h-2 rounded-full ${/[0-9]/.test(formData.password) ? 'bg-green-500' : 'bg-gray-300'}`}></div><span>One number</span></li>
-                </ul>
-              </div>
-
-              {/* Terms */}
-              <div className="flex items-start space-x-2">
-                <input type="checkbox" className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 mt-0.5" required />
-                <span className="text-sm text-gray-600">I agree to the <button className="text-green-600 hover:underline">Terms</button> and <button className="text-green-600 hover:underline">Privacy Policy</button></span>
-              </div>
-
-              {/* Buttons */}
-              <div className="flex space-x-3">
-                <button onClick={prevStep} className="flex-1 bg-gray-200 text-gray-700 py-2.5 text-sm rounded-lg font-semibold hover:bg-gray-300 transition-all duration-300" disabled={isLoading}>Back</button>
-                <button onClick={handleSubmit} disabled={isLoading} className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white py-2.5 text-sm rounded-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all duration-300 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {isLoading ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <>
-                    <span>Create Account</span> <ArrowRight className="w-4 h-4" />
-                  </>}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Sign In */}
-          <div className="mt-6 text-center">
-            <span className="text-sm text-gray-600">Already have an account? </span>
-            <button onClick={() => window.location.href = "/login"} className="text-sm text-green-600 hover:text-green-700 font-semibold transition-colors">Sign In</button>
-          </div>
+              <p>Join 10,000+ others healing naturally.</p>
+           </div>
         </div>
+
+        {/* Right: Signup Card */}
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }} 
+          animate={{ opacity: 1, x: 0 }} 
+          transition={{ duration: 0.5 }}
+          className="glass-card p-8 md:p-10 rounded-3xl"
+        >
+          <div className="mb-8 text-center md:text-left">
+             <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-900 flex items-center justify-center text-white">
+                   <Leaf size={16} fill="currentColor" />
+                </div>
+                <span className="text-xl font-bold serif text-emerald-900">AyurSutra</span>
+             </div>
+             <h2 className="text-2xl font-bold text-stone-900">Create Account</h2>
+             <p className="text-stone-500 text-sm mt-1">Step {currentStep} of 2</p>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full bg-stone-200 h-1 rounded-full mb-8 overflow-hidden">
+             <motion.div 
+               initial={{ width: "0%" }} 
+               animate={{ width: currentStep === 1 ? "50%" : "100%" }} 
+               className="h-full bg-emerald-600 rounded-full"
+             />
+          </div>
+
+          {/* Error/Success Message */}
+          <AnimatePresence>
+            {message.text && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className={`mb-6 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-800 border border-emerald-100'}`}
+              >
+                 {message.type === 'error' ? <Shield size={16}/> : <CheckCircle2 size={16}/>}
+                 {message.text}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-5">
+            
+            {currentStep === 1 ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-5">
+                <div className="space-y-1">
+                   <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">Identity</label>
+                   <GlassInput icon={User} name="name" placeholder="Full Name" value={formData.name} onChange={handleInputChange} />
+                </div>
+                
+                <div className="space-y-1">
+                   <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">Contact</label>
+                   <GlassInput icon={Mail} type="email" name="email" placeholder="Email Address" value={formData.email} onChange={handleInputChange} />
+                   <GlassInput icon={Phone} type="tel" name="phone" placeholder="Phone Number" value={formData.phone} onChange={handleInputChange} className="mt-3" />
+                </div>
+
+                <div className="space-y-1">
+                   <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">I am a...</label>
+                   <div className="grid grid-cols-2 gap-3">
+                      {['patient', 'practitioner'].map(r => (
+                         <button 
+                           key={r}
+                           onClick={() => setFormData({...formData, role: r})}
+                           className={`py-3 rounded-xl text-sm font-bold border transition-all ${
+                             formData.role === r 
+                             ? 'bg-emerald-900 text-white border-emerald-900 shadow-md' 
+                             : 'bg-white/50 text-stone-600 border-stone-200 hover:bg-white'
+                           }`}
+                         >
+                            {r.charAt(0).toUpperCase() + r.slice(1)}
+                         </button>
+                      ))}
+                   </div>
+                </div>
+
+                <button onClick={nextStep} className="w-full bg-emerald-900 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-800 transition-all shadow-lg mt-4">
+                   Continue <ArrowRight size={18} />
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+                 <div className="space-y-4">
+                    <div className="relative">
+                       <GlassInput icon={Lock} type={showPassword ? "text" : "password"} name="password" placeholder="Create Password" value={formData.password} onChange={handleInputChange} />
+                       <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
+                          {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                       </button>
+                    </div>
+                    
+                    <div className="relative">
+                       <GlassInput icon={Lock} type={showConfirmPassword ? "text" : "password"} name="confirmPassword" placeholder="Confirm Password" value={formData.confirmPassword} onChange={handleInputChange} />
+                       <button onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
+                          {showConfirmPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                       </button>
+                    </div>
+                 </div>
+
+                 <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 text-xs text-stone-600 space-y-2">
+                    <p className="font-bold text-emerald-800">Password Strength:</p>
+                    <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${formData.password.length >= 8 ? 'bg-emerald-500' : 'bg-stone-300'}`}/> At least 8 characters</div>
+                    <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${/[0-9]/.test(formData.password) ? 'bg-emerald-500' : 'bg-stone-300'}`}/> Contains a number</div>
+                 </div>
+
+                 <div className="flex gap-3 pt-2">
+                    <button onClick={() => setCurrentStep(1)} className="px-5 py-3.5 bg-white border border-stone-200 rounded-xl text-stone-600 hover:bg-stone-50 transition-colors">
+                       <ArrowLeft size={20} />
+                    </button>
+                    <button onClick={handleSubmit} disabled={isLoading} className="flex-1 bg-emerald-900 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-800 transition-all shadow-lg disabled:opacity-70 disabled:cursor-not-allowed">
+                       {isLoading ? <Loader2 className="animate-spin" size={20}/> : "Create Account"}
+                    </button>
+                 </div>
+              </motion.div>
+            )}
+
+          </form>
+
+          <div className="mt-8 text-center pt-6 border-t border-stone-200/60">
+             <p className="text-sm text-stone-500 font-medium">
+                Already have an account? <a href="/login" className="text-emerald-800 font-bold hover:underline">Sign In</a>
+             </p>
+          </div>
+
+        </motion.div>
       </div>
     </div>
   );
