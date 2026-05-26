@@ -1,32 +1,37 @@
 import { Router } from "express";
-import { myAppointments, slots, book, cancel,getPatientsByDoctorId } from "../controllers/appointmentController.js";
-import { protect, permit } from "../middleware/auth.js";
-import { runValidation } from "../middleware/validation.js";
-import { bookValidation } from "../utils/validation.js";
-import { query } from "express-validator";
+import {
+  myAppointments, slots, book, cancel,
+  getPatientsByDoctorId, updateStatus, getStats,
+  getAppointmentsByDoctorId, reschedule,
+} from "../controllers/appointmentController.js";
 
 const r = Router();
 
-// Patient ke apne appointments
+// Stats for dashboard
+r.get("/stats/:userId", getStats);
+
+// Patient appointments
 r.get("/me/:userId", myAppointments);
+
+// Doctor's full appointment list (ALL appointments with details)
+r.get("/doctor/:pracDocId", getAppointmentsByDoctorId);
+
+// Doctor's patients (unique)
 r.get("/:id", getPatientsByDoctorId);
-// 
-// Practitioner ke slots
-r.get(
-  "/slots",
-  
-  query("practitionerId").notEmpty(),
-  query("therapyId").notEmpty(),
-  query("from").notEmpty(),
-  query("to").notEmpty(),
-  
-  slots
-);
 
-// Book new appointment
-r.post("/",  book);
+// Slots
+r.post("/slots", slots);
 
-// Cancel appointment
-r.post("/:id/cancel",  cancel);
+// Book
+r.post("/", book);
+
+// Cancel
+r.post("/:id/cancel", cancel);
+
+// Reschedule (cancel old + create new)
+r.patch("/:id/reschedule", reschedule);
+
+// Doctor updates status (confirm / complete / cancel)
+r.patch("/:id/status", updateStatus);
 
 export default r;

@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { 
   Plus, Trash2, Edit2, Save, X, Search, 
   User, Mail, Phone, Loader2, CheckCircle2 
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Environment, MeshTransmissionMaterial } from "@react-three/drei";
-import * as THREE from "three";
+// Three.js removed
 
 // --- 1. Global Styles ---
 const GlobalStyles = () => (
@@ -33,53 +31,14 @@ const GlobalStyles = () => (
   `}</style>
 );
 
-// --- 2. 3D Background (Subtle Flow) ---
-const OrganicFluid = () => {
-  const meshRef = useRef();
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime() * 0.2;
-    if (meshRef.current) {
-      meshRef.current.rotation.x = Math.sin(t) * 0.2;
-      meshRef.current.rotation.y = Math.cos(t * 0.5) * 0.2;
-    }
-  });
-
-  return (
-    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5} position={[4, -2, -5]}>
-      <mesh ref={meshRef} scale={[4, 4, 4]}>
-        <icosahedronGeometry args={[1, 4]} /> 
-        <MeshTransmissionMaterial
-          backside
-          samples={6}
-          thickness={2}
-          chromaticAberration={0.03}
-          anisotropy={0.1}
-          distortion={0.4}
-          distortionScale={0.4}
-          temporalDistortion={0.1}
-          iridescence={0.3}
-          color={new THREE.Color("#065f46")}
-          bg={new THREE.Color("#F5F5F4")}
-          transmission={0.9}
-          roughness={0.1}
-        />
-      </mesh>
-    </Float>
-  );
-};
-
-const Scene = () => (
-  <div className="fixed inset-0 z-0 w-full h-full pointer-events-none opacity-50">
-    <Canvas camera={{ position: [0, 0, 10], fov: 45 }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
-      <ambientLight intensity={0.8} color="#e7e5e4" />
-      <spotLight position={[10, 10, 10]} angle={0.3} penumbra={1} intensity={1} color="#fff" />
-      <Suspense fallback={null}>
-        <OrganicFluid />
-        <Environment preset="city" blur={0.8} /> 
-      </Suspense>
-    </Canvas>
+// CSS background replaces Three.js
+const AnimBg = () => (
+  <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+    <div className="absolute -top-32 right-0 w-[500px] h-[500px] rounded-full bg-emerald-200/20 blur-3xl" style={{animation:'rdrift 24s ease-in-out infinite'}} />
+    <style>{`@keyframes rdrift{0%,100%{transform:translate(0,0)}50%{transform:translate(-30px,30px)}}`}</style>
   </div>
 );
+
 
 // --- 3. UI Components ---
 const GlassInput = ({ icon: Icon, ...props }) => (
@@ -167,13 +126,7 @@ const RecordsPage = () => {
   return (
     <div className="min-h-screen bg-[#F5F5F4] relative selection:bg-emerald-200 selection:text-emerald-900 overflow-hidden">
       <GlobalStyles />
-      <Scene />
-      
-      {/* Background Texture */}
-      <div className="fixed inset-0 z-0 opacity-[0.05] pointer-events-none mix-blend-multiply" 
-           style={{backgroundImage: `url("https://www.transparenttextures.com/patterns/cubes.png")`}}>
-      </div>
-
+      <AnimBg />
       <div className="relative z-10 container mx-auto px-6 py-12 max-w-5xl">
         
         {/* Header */}

@@ -1,109 +1,43 @@
-import React, { useState, useRef, Suspense } from 'react';
+import React, { useState } from 'react';
 import { 
-  Eye, EyeOff, Leaf, Mail, Lock, ArrowRight, User, 
-  Shield, Loader2, CheckCircle2, ArrowLeft 
+  Eye, EyeOff, Leaf, Mail, Lock, ArrowRight,
+  Shield, Loader2, CheckCircle2, Sparkles, HeartPulse
 } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Environment, MeshTransmissionMaterial } from "@react-three/drei";
-import { Navigate } from "react-router-dom";
-import { useUser } from "../context/userContext"; 
-import * as THREE from "three";
+import { Navigate, Link } from "react-router-dom";
+import { useUser } from "../context/userContext";
 
-// --- 1. Global Styles & Theme (Shared) ---
-const GlobalStyles = () => (
-  <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
-    
-    :root {
-      --color-bg: #F5F5F4;
-      --color-text-main: #1C1917;
-      --color-primary: #064E3B;
-    }
-
-    body { font-family: 'Manrope', sans-serif; background-color: var(--color-bg); color: var(--color-text-main); }
-    h1, h2, h3, h4, .serif { font-family: 'Playfair Display', serif; }
-    
-    .glass-card {
-      background: rgba(255, 255, 255, 0.75); 
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.8);
-      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
-    }
-  `}</style>
-);
-
-// --- 2. 3D Background (Prana Flow) ---
-const OrganicFluid = () => {
-  const meshRef = useRef();
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime() * 0.2;
-    if (meshRef.current) {
-      meshRef.current.rotation.x = Math.sin(t) * 0.3;
-      meshRef.current.rotation.y = Math.cos(t * 0.8) * 0.3;
-      meshRef.current.position.y = Math.sin(t * 0.5) * 0.2;
-    }
-  });
-
-  return (
-    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5} position={[2, 0, -2]}>
-      <mesh ref={meshRef} scale={[3.5, 3.5, 3.5]}>
-        <icosahedronGeometry args={[1, 6]} /> 
-        <MeshTransmissionMaterial
-          backside
-          samples={6}
-          thickness={2}
-          chromaticAberration={0.03}
-          anisotropy={0.1}
-          distortion={0.5}
-          distortionScale={0.5}
-          temporalDistortion={0.1}
-          iridescence={0.3}
-          color={new THREE.Color("#065f46")}
-          bg={new THREE.Color("#F5F5F4")}
-          transmission={0.9}
-          roughness={0.2}
-        />
-      </mesh>
-    </Float>
-  );
-};
-
-const Scene = () => (
-  <div className="fixed inset-0 z-0 w-full h-full pointer-events-none">
-    <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
-      <ambientLight intensity={0.8} color="#e7e5e4" />
-      <spotLight position={[10, 10, 10]} angle={0.3} penumbra={1} intensity={1} color="#fff" />
-      <Suspense fallback={null}>
-        <OrganicFluid />
-        <Environment preset="city" blur={0.8} /> 
-      </Suspense>
-    </Canvas>
+const AnimBg = () => (
+  <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true">
+    <div className="absolute -top-40 -right-40 w-[400px] h-[400px] sm:w-[600px] sm:h-[600px] rounded-full bg-emerald-200/20 blur-3xl" style={{ animation: 'drift 20s ease-in-out infinite' }} />
+    <div className="absolute -bottom-40 -left-40 w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] rounded-full bg-amber-100/15 blur-3xl" style={{ animation: 'drift 26s ease-in-out infinite reverse' }} />
+    <style>{`@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-30px)}}`}</style>
   </div>
 );
 
-// --- 3. UI Components ---
-const GlassInput = ({ icon: Icon, ...props }) => (
-  <div className="relative group">
-    {Icon && <Icon className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/50 group-focus-within:text-emerald-700 transition-colors" size={18} />}
-    <input 
-      {...props}
-      className={`w-full bg-white/50 border border-stone-200 rounded-xl py-3.5 ${Icon ? 'pl-12' : 'pl-4'} pr-4 text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-700 focus:bg-white transition-all shadow-sm`}
-    />
+const InputField = ({ icon: Icon, label, id, rightEl, ...props }) => (
+  <div className="space-y-1.5">
+    <label htmlFor={id} className="text-xs font-bold text-stone-500 uppercase tracking-wider">{label}</label>
+    <div className="relative group">
+      {Icon && <Icon className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-emerald-700 transition-colors" size={17} />}
+      <input
+        id={id} {...props}
+        className={`w-full bg-white/60 border border-stone-200 rounded-xl py-3.5 ${Icon ? 'pl-11' : 'pl-4'} ${rightEl ? 'pr-12' : 'pr-4'} text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-600 focus:bg-white transition-all shadow-sm text-sm`}
+      />
+      {rightEl && <div className="absolute right-3 top-1/2 -translate-y-1/2">{rightEl}</div>}
+    </div>
   </div>
 );
 
 const LoginPage = () => {
   const { user, setUser } = useUser();
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [rememberMe, setRememberMe] = useState(false);
+  const [formData,      setFormData]      = useState({ email: '', password: '' });
+  const [showPassword,  setShowPassword]  = useState(false);
+  const [isLoading,     setIsLoading]     = useState(false);
+  const [message,       setMessage]       = useState({ type: '', text: '' });
+  const [rememberMe,    setRememberMe]    = useState(false);
 
-  // Redirect if already logged in
   if (user) {
     return <Navigate to={user.role === "practitioner" ? "/doctor-dashboard" : "/dashboard"} replace />;
   }
@@ -113,20 +47,14 @@ const LoginPage = () => {
     setMessage({ type: '', text: '' });
   };
 
-  const validateForm = () => {
-    if (!formData.email.trim()) return setMessage({ type: 'error', text: 'Email is required' });
-    if (!formData.password.trim()) return setMessage({ type: 'error', text: 'Password is required' });
-    return true;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!formData.email.trim()) return setMessage({ type: 'error', text: 'Email is required' });
+    if (!formData.password.trim()) return setMessage({ type: 'error', text: 'Password is required' });
 
     setIsLoading(true);
     try {
       const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/user/login`, formData);
-
       if (response.data.success) {
         setUser(response.data.user);
         localStorage.setItem("user", JSON.stringify(response.data.user));
@@ -136,114 +64,147 @@ const LoginPage = () => {
         setMessage({ type: 'error', text: response.data.message || 'Invalid credentials.' });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Something went wrong.' });
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Something went wrong. Please try again.' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleForgotPassword = () => {
-    if (!formData.email) return setMessage({ type: 'error', text: 'Enter email first.' });
-    setMessage({ type: 'success', text: 'Reset link sent!' });
-  };
-
   return (
-    <div className="min-h-screen w-full bg-[#F5F5F4] flex items-center justify-center relative overflow-hidden selection:bg-emerald-200 selection:text-emerald-900">
-      <GlobalStyles />
-      <Scene />
-      
-      <div className="relative z-10 w-full max-w-5xl px-6 grid md:grid-cols-2 gap-12 items-center">
-        
-        {/* Left: Brand/Context (Desktop Only) */}
-        <div className="hidden md:block space-y-6">
-           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100/80 border border-emerald-200 text-emerald-900 text-xs font-bold uppercase tracking-widest shadow-sm">
-              <Leaf size={12} /> Welcome Back
-           </div>
-           <h1 className="text-6xl font-bold text-stone-900 serif leading-tight">
-              Continue your path to <span className="text-emerald-800 italic">balance.</span>
-           </h1>
-           <p className="text-stone-600 text-lg max-w-md font-medium leading-relaxed">
-              Sign in to access your personalized wellness dashboard, track your progress, and consult with experts.
-           </p>
-           
-           <div className="flex items-center gap-4 text-sm font-bold text-stone-500 pt-8">
-              <div className="flex -space-x-3">
-                 {[1,2,3].map(i => (
-                    <div key={i} className="w-10 h-10 rounded-full border-2 border-[#F5F5F4] bg-stone-200 flex items-center justify-center text-xs">User</div>
-                 ))}
+    <div className="min-h-screen w-full bg-[#F5F5F4] flex flex-col items-center justify-center relative overflow-hidden p-4 selection:bg-emerald-200 selection:text-emerald-900">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap'); body{font-family:'Manrope',sans-serif;} .serif{font-family:'Playfair Display',serif;}`}</style>
+      <AnimBg />
+
+      {/* Back to home link */}
+      <div className="relative z-10 w-full max-w-5xl mb-4">
+        <Link to="/" className="inline-flex items-center gap-2 text-stone-500 hover:text-emerald-700 transition-colors text-sm font-bold">
+          <Leaf size={14} className="text-emerald-700" /> AyurSutra
+        </Link>
+      </div>
+
+      <div className="relative z-10 w-full max-w-5xl grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
+
+        {/* Left: Brand (desktop only) */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}
+          className="hidden md:flex flex-col justify-center space-y-6"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100 border border-emerald-200 text-emerald-900 text-xs font-bold uppercase tracking-widest w-fit">
+            <HeartPulse size={12} className="text-emerald-600" /> Wellness Platform
+          </div>
+          <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-stone-900 serif leading-tight">
+            Continue your path to{" "}
+            <span className="text-emerald-800 italic">balance.</span>
+          </h1>
+          <p className="text-stone-600 text-base lg:text-lg max-w-sm font-medium leading-relaxed">
+            Sign in to access your personalized wellness dashboard, track your progress, and consult with experts.
+          </p>
+
+          {/* Feature pills */}
+          <div className="space-y-2.5 pt-2">
+            {[
+              { icon: Shield, text: "HIPAA-compliant & fully encrypted" },
+              { icon: Sparkles, text: "AI-powered Ayurvedic insights" },
+              { icon: CheckCircle2, text: "10,000+ patients trust AyurSutra" },
+            ].map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3 text-sm text-stone-600 font-medium">
+                <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <Icon size={14} className="text-emerald-700" />
+                </div>
+                {text}
               </div>
-              <p>Trusted by 10,000+ users.</p>
-           </div>
-        </div>
+            ))}
+          </div>
+        </motion.div>
 
         {/* Right: Login Card */}
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }} 
-          animate={{ opacity: 1, x: 0 }} 
-          transition={{ duration: 0.5 }}
-          className="glass-card p-8 md:p-10 rounded-3xl"
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}
+          className="bg-white/75 backdrop-blur-xl border border-white/80 shadow-[0_8px_40px_rgba(0,0,0,0.06)] p-6 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl w-full"
         >
-          <div className="mb-8 text-center md:text-left">
-             <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-900 flex items-center justify-center text-white">
-                   <Leaf size={16} fill="currentColor" />
-                </div>
-                <span className="text-xl font-bold serif text-emerald-900">AyurSutra</span>
-             </div>
-             <h2 className="text-2xl font-bold text-stone-900">Sign In</h2>
-             <p className="text-stone-500 text-sm mt-1">Welcome back to your dashboard</p>
+          {/* Logo (mobile) */}
+          <div className="flex items-center gap-2 mb-6 md:hidden justify-center">
+            <div className="w-8 h-8 rounded-lg bg-emerald-900 flex items-center justify-center text-white">
+              <Leaf size={15} fill="currentColor" />
+            </div>
+            <span className="text-lg font-bold serif text-emerald-900">AyurSutra</span>
           </div>
 
-          {/* Error/Success Message */}
+          <div className="mb-7">
+            <h2 className="text-2xl sm:text-3xl font-bold text-stone-900 serif">Welcome back</h2>
+            <p className="text-stone-500 text-sm mt-1 font-medium">Sign in to your account to continue</p>
+          </div>
+
+          {/* Alert */}
           <AnimatePresence>
             {message.text && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                className={`mb-6 p-3 rounded-xl text-sm font-medium flex items-center gap-2 ${message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-800 border border-emerald-100'}`}
+                className={`mb-5 p-3.5 rounded-xl text-sm font-medium flex items-center gap-2.5
+                  ${message.type === 'error'
+                    ? 'bg-red-50 text-red-700 border border-red-100'
+                    : 'bg-emerald-50 text-emerald-800 border border-emerald-100'}`}
               >
-                 {message.type === 'error' ? <Shield size={16}/> : <CheckCircle2 size={16}/>}
-                 {message.text}
+                {message.type === 'error' ? <Shield size={16} className="shrink-0"/> : <CheckCircle2 size={16} className="shrink-0"/>}
+                {message.text}
               </motion.div>
             )}
           </AnimatePresence>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-4">
-               <div className="space-y-1">
-                  <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">Email</label>
-                  <GlassInput icon={Mail} type="email" name="email" placeholder="you@example.com" value={formData.email} onChange={handleInputChange} />
-               </div>
-               
-               <div className="space-y-1">
-                  <label className="text-xs font-bold text-stone-500 uppercase tracking-wider ml-1">Password</label>
-                  <div className="relative">
-                     <GlassInput icon={Lock} type={showPassword ? "text" : "password"} name="password" placeholder="••••••••" value={formData.password} onChange={handleInputChange} />
-                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
-                        {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
-                     </button>
-                  </div>
-               </div>
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+            <InputField
+              id="email" icon={Mail} label="Email Address"
+              type="email" name="email" placeholder="you@example.com"
+              value={formData.email} onChange={handleInputChange} required
+            />
+            <InputField
+              id="password" icon={Lock} label="Password"
+              type={showPassword ? "text" : "password"} name="password"
+              placeholder="••••••••" value={formData.password} onChange={handleInputChange} required
+              rightEl={
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="text-stone-400 hover:text-stone-700 transition-colors p-1" aria-label="Toggle password">
+                  {showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}
+                </button>
+              }
+            />
+
+            <div className="flex items-center justify-between text-sm pt-1">
+              <label className="flex items-center gap-2 cursor-pointer text-stone-600 hover:text-stone-800 transition-colors select-none">
+                <input
+                  type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500 focus:ring-offset-0"
+                />
+                <span className="text-xs font-medium">Remember me</span>
+              </label>
+              <button type="button" className="text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline transition-colors">
+                Forgot Password?
+              </button>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-               <label className="flex items-center gap-2 cursor-pointer text-stone-600 hover:text-stone-800 transition-colors">
-                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-500"/>
-                  Remember me
-               </label>
-               <button type="button" onClick={handleForgotPassword} className="font-bold text-emerald-700 hover:underline">Forgot Password?</button>
-            </div>
-
-            <button type="submit" disabled={isLoading} className="w-full bg-emerald-900 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-800 transition-all shadow-lg disabled:opacity-70 disabled:cursor-not-allowed">
-               {isLoading ? <Loader2 className="animate-spin" size={20}/> : <>Sign In <ArrowRight size={18}/></>}
+            <button type="submit" disabled={isLoading}
+              className="w-full bg-emerald-900 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-800 transition-all shadow-lg shadow-emerald-900/10 hover:shadow-emerald-900/20 hover:scale-[1.01] disabled:opacity-70 disabled:cursor-not-allowed disabled:scale-100 text-sm sm:text-base">
+              {isLoading ? <><Loader2 className="animate-spin" size={18}/> Signing in…</> : <>Sign In <ArrowRight size={17}/></>}
             </button>
           </form>
 
-          <div className="mt-8 text-center pt-6 border-t border-stone-200/60">
-             <p className="text-sm text-stone-500 font-medium">
-                Don't have an account? <a href="/register" className="text-emerald-800 font-bold hover:underline">Create Account</a>
-             </p>
+          {/* Divider */}
+          <div className="my-5 sm:my-6 flex items-center gap-3">
+            <div className="flex-1 h-px bg-stone-200" />
+            <span className="text-xs text-stone-400 font-medium">New to AyurSutra?</span>
+            <div className="flex-1 h-px bg-stone-200" />
           </div>
 
+          <Link to="/register"
+            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-stone-200 rounded-xl font-bold text-stone-700 text-sm hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 transition-all">
+            Create Free Account <ArrowRight size={15} />
+          </Link>
+
+          <p className="text-center text-xs text-stone-400 mt-4 sm:mt-5">
+            By signing in, you agree to our{" "}
+            <a href="#" className="underline hover:text-stone-700">Terms</a> and{" "}
+            <a href="#" className="underline hover:text-stone-700">Privacy Policy</a>.
+          </p>
         </motion.div>
       </div>
     </div>

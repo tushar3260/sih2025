@@ -5,6 +5,7 @@ import {
   Eye, Brain, Zap, Leaf, Loader2 
 } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from 'react-router-dom';
 
 // --- 1. Global Styles & Theme ---
 const GlobalStyles = () => (
@@ -160,6 +161,7 @@ const PanchakarmaAIsystem = () => {
     goals: []
   });
   const [recommendations, setRecommendations] = useState(null);
+  const navigate = useNavigate();
 
   // Memoize the AI model so it doesn't recreate on render
   const aiModel = useMemo(() => new SimpleNeuralNetwork(), []);
@@ -612,10 +614,18 @@ const PanchakarmaAIsystem = () => {
 
               {/* Action */}
               <div className="flex gap-4">
-                <button className="flex-1 bg-stone-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-emerald-900 transition-all">
-                  Book Consultation
+                <button
+                  onClick={() => navigate('/therapies')}
+                  className="flex-1 bg-stone-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-emerald-900 transition-all flex items-center justify-center gap-2">
+                  Book Consultation <ArrowRight size={18}/>
                 </button>
-                <button className="flex-1 bg-white text-stone-900 border border-stone-200 py-4 rounded-xl font-bold shadow-sm hover:bg-stone-50 transition-all">
+                <button
+                  onClick={() => {
+                    const report = { patientData, recommendations, generatedAt: new Date().toISOString() };
+                    localStorage.setItem('aiReport', JSON.stringify(report));
+                    alert('Report saved! You can view it in your Health Info section.');
+                  }}
+                  className="flex-1 bg-white text-stone-900 border border-stone-200 py-4 rounded-xl font-bold shadow-sm hover:bg-stone-50 transition-all">
                   Save Report
                 </button>
               </div>

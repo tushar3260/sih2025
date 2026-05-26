@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useReducer, useMemo, useCallback, memo } from 'react';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
-  ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar 
-} from 'recharts';
+// recharts removed — using pure SVG charts
 import { 
   Heart, Activity, Brain, Moon, Thermometer, TrendingUp, Award, 
   AlertTriangle, Settings, Download, Zap, Target, Shield, CheckCircle2, 
@@ -54,10 +51,10 @@ const GlobalStyles = () => (
 // --- 2. Reusable UI Components ---
 const GlassCard = ({ children, className = "", delay = 0 }) => (
   <motion.div
-    initial={{ opacity: 0, y: 20 }}
+    initial={{ opacity: 0, y: 14 }}
     animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, delay, type: "spring", stiffness: 50 }}
-    className={`bg-white/60 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl ${className}`}
+    transition={{ duration: 0.25, delay, ease: "easeOut" }}
+    className={`bg-white/65 backdrop-blur-[10px] border border-white/75 shadow-[0_4px_20px_rgb(0,0,0,0.04)] rounded-2xl ${className}`}
   >
     {children}
   </motion.div>
@@ -321,22 +318,40 @@ const HealthScoreGauge = memo(({ score, size = 180 }) => {
   );
 });
 
-const TrendChart = memo(({ data, metric = 'aiScore', title, color="#059669" }) => {
-  const chartData = useMemo(() => data.slice(-30).map((e, i) => ({ day: i + 1, value: e[metric] || 0 })), [data, metric]);
+// Pure SVG line chart — zero dependency
+const TrendChart = memo(({ data, metric = 'aiScore', title, color = "#059669" }) => {
+  const pts = useMemo(() => data.slice(-30).map((e, i) => e[metric] ?? 0), [data, metric]);
+  if (pts.length < 2) return (
+    <GlassCard className="p-6 flex items-center justify-center h-48">
+      <p className="text-stone-400 text-sm font-medium">Not enough data yet</p>
+    </GlassCard>
+  );
+  const W = 400, H = 120, pad = 10;
+  const min = Math.min(...pts), max = Math.max(...pts);
+  const range = max - min || 1;
+  const coords = pts.map((v, i) => [
+    pad + (i / (pts.length - 1)) * (W - pad * 2),
+    H - pad - ((v - min) / range) * (H - pad * 2),
+  ]);
+  const linePath = coords.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ');
+  const areaPath = `${linePath} L${coords[coords.length-1][0]},${H} L${coords[0][0]},${H} Z`;
+  const gId = `tg-${metric}`;
   return (
     <GlassCard className="p-6">
-      <h3 className="font-bold text-stone-700 mb-4 serif">{title}</h3>
-      <div className="h-64 w-full">
-        <ResponsiveContainer>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E7E5E4" />
-            <XAxis dataKey="day" stroke="#A8A29E" fontSize={10} tickLine={false} />
-            <YAxis stroke="#A8A29E" fontSize={10} tickLine={false} />
-            <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-            <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} dot={{r:0}} activeDot={{r:6, fill: color}} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      <h3 className="font-bold serif text-stone-700 mb-4 text-sm">{title}</h3>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 120 }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={color} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={color} stopOpacity="0"   />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill={`url(#${gId})`} />
+        <path d={linePath} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {coords.map(([x, y], i) => i === coords.length - 1 && (
+          <circle key={i} cx={x} cy={y} r="4" fill={color} />
+        ))}
+      </svg>
     </GlassCard>
   );
 });
@@ -377,10 +392,6 @@ const HealthInfo = () => {
   return (
     <div className="min-h-screen bg-[#F5F5F4] relative selection:bg-emerald-200 selection:text-emerald-900">
       <GlobalStyles />
-      <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none mix-blend-multiply" 
-           style={{backgroundImage: `url("https://www.transparenttextures.com/patterns/cubes.png")`}}>
-      </div>
-      
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-6xl">
         
         {/* Header */}
@@ -527,19 +538,14 @@ const HealthInfo = () => {
                      <TrendChart data={state.entries} metric="aiScore" title="Overall Wellness Score" />
                      <TrendChart data={state.entries} metric="mood" title="Mood Stability" color="#A855F7" />
                   </div>
-                  <GlassCard className="p-8 flex items-center justify-center">
-                     <div className="w-full max-w-lg h-80">
-                       <h3 className="text-center font-bold serif text-stone-700 mb-4">Holistic Balance Radar</h3>
-                       <ResponsiveContainer>
-                          <RadarChart data={[state.entries[state.entries.length -1]]}>
-                             <PolarGrid stroke="#E7E5E4" />
-                             <PolarAngleAxis dataKey="timestamp" tick={false} />
-                             <Radar name="Current" dataKey="pain" stroke="#059669" fill="#059669" fillOpacity={0.2} />
-                          </RadarChart>
-                       </ResponsiveContainer>
-                       <p className="text-center text-xs text-stone-400 mt-2">* Visualization of current metrics against optimal values</p>
-                     </div>
-                  </GlassCard>
+                  <div className="col-span-full">
+                    <GlassCard className="p-8 text-center">
+                      <div className="inline-flex items-center gap-3 bg-emerald-50 px-5 py-3 rounded-xl border border-emerald-100">
+                        <CheckCircle2 size={20} className="text-emerald-600" />
+                        <span className="text-sm font-bold text-emerald-800">Holistic Balance: All metrics tracked above</span>
+                      </div>
+                    </GlassCard>
+                  </div>
                  </>
                ) : (
                  <GlassCard className="p-12 text-center">

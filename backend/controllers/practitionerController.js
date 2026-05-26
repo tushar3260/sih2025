@@ -1,73 +1,100 @@
-import Practitioner from "../models/Practicioner.js"; // spelling fix
+import Practitioner from "../models/Practicioner.js";
 import User from "../models/User.js";
 
-//  List all practitioners with basic user details
+// ── List all practitioners ────────────────────────────────────
 export const listPractitioners = async (req, res, next) => {
   try {
     const items = await Practitioner.find()
-      .populate("user", "name email role") // role bhi laa raha hu
+      .populate("user", "name email phone role")
       .lean();
-
     res.json(items);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
-// ✅ Create new practitioner
+// ── Get single practitioner by DB id ─────────────────────────
+export const getPractitionerById = async (req, res, next) => {
+  try {
+    const doc = await Practitioner.findById(req.params.id)
+      .populate("user", "name email phone role")
+      .lean();
+    if (!doc) return res.status(404).json({ error: "Practitioner not found" });
+    res.json(doc);
+  } catch (err) { next(err); }
+};
+
+// ── Get practitioner by User ID ───────────────────────────────
+export const getPractitionerByUserId = async (req, res, next) => {
+  try {
+    const doc = await Practitioner.findOne({ user: req.params.userId })
+      .populate("user", "name email phone role")
+      .lean();
+    if (!doc) return res.status(404).json({ error: "Practitioner profile not found" });
+    res.json(doc);
+  } catch (err) { next(err); }
+};
+
+// ── Create practitioner ───────────────────────────────────────
 export const createPractitioner = async (req, res, next) => {
   try {
-    // Expected body: { user: userId, specialty: [], availability: [] }
-    const { user, specialty = [], availability = [] } = req.body;
+    const {
+      user, specialty = [], availability = [],
+      bio = "", qualifications = [], experience = 0,
+      languages = [], consultationFee = 0
+    } = req.body;
 
-    // check if user exists
     const userExists = await User.findById(user);
-    if (!userExists) {
-      console.error("User not found:", user);
-      return res.status(400).json({ error: "User not found" });
+    if (!userExists) return res.status(400).json({ error: "User not found" });
+
+    // Check if already exists
+    const existing = await Practitioner.findOne({ user });
+    if (existing) {
+      return res.status(409).json({ error: "Practitioner profile already exists for this user" });
     }
 
     const doc = await Practitioner.create({
-      user,
-      specialty,
-      availability,
+      user, specialty, availability,
+      bio, qualifications, experience,
+      languages, consultationFee
     });
 
-    // populate user data for response
-    const populatedDoc = await doc.populate("user", "name email role");
-
-    console.log("Practitioner created:", populatedDoc);
-    res.status(201).json(populatedDoc);
-  } catch (err) {
-    console.error("Error creating practitioner:", err);
-    next(err);
-  }
+    const populated = await doc.populate("user", "name email role");
+    res.status(201).json(populated);
+  } catch (err) { next(err); }
 };
 
-// ✅ Update availability for practitioner
-export const updateAvailability = async (req, res, next) => {
+// ── Update practitioner profile ───────────────────────────────
+export const updatePractitioner = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { availability } = req.body;
+    const allowed = [
+      "specialty", "availability", "breaks",
+      "bio", "qualifications", "experience",
+      "languages", "consultationFee", "profilePhoto"
+    ];
+    const update = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
 
-    if (!Array.isArray(availability)) {
-      return res.status(400).json({ error: "Availability must be an array" });
-    }
-
-    const updated = await Practitioner.findByIdAndUpdate(
-      id,
-      { availability },
-      { new: true }
-    )
-      .populate("user", "name email role")
+    const updated = await Practitioner.findByIdAndUpdate(id, update, { new: true, runValidators: true })
+      .populate("user", "name email phone role")
       .lean();
 
-    if (!updated) {
-      return res.status(404).json({ error: "Practitioner not found" });
-    }
-
+    if (!updated) return res.status(404).json({ error: "Practitioner not found" });
     res.json(updated);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
+};
+
+// ── Update availability ───────────────────────────────────────
+export const updateAvailability = async (req, res, next) => {
+  try {
+    const { availability } = req.body;
+    if (!Array.isArray(availability))
+      return res.status(400).json({ error: "Availability must be an array" });
+
+    const updated = await Practitioner.findByIdAndUpdate(
+      req.params.id, { availability }, { new: true }
+    ).populate("user", "name email role").lean();
+
+    if (!updated) return res.status(404).json({ error: "Practitioner not found" });
+    res.json(updated);
+  } catch (err) { next(err); }
 };

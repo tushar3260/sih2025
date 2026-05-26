@@ -1,13 +1,11 @@
-import React, { useState, useRef, Suspense } from 'react';
+import React, { useState } from 'react';
 import { 
   Eye, EyeOff, Leaf, Mail, Lock, ArrowRight, User, 
   Phone, Shield, Loader2, CheckCircle2, ArrowLeft 
 } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Environment, MeshTransmissionMaterial } from "@react-three/drei";
-import * as THREE from "three";
+// Three.js removed
 
 // --- 1. Global Styles & Theme ---
 const GlobalStyles = () => (
@@ -33,54 +31,15 @@ const GlobalStyles = () => (
   `}</style>
 );
 
-// --- 2. 3D Background (Prana Flow) ---
-const OrganicFluid = () => {
-  const meshRef = useRef();
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime() * 0.2;
-    if (meshRef.current) {
-      meshRef.current.rotation.x = Math.sin(t) * 0.3;
-      meshRef.current.rotation.y = Math.cos(t * 0.8) * 0.3;
-      meshRef.current.position.y = Math.sin(t * 0.5) * 0.2;
-    }
-  });
-
-  return (
-    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5} position={[2, 0, -2]}>
-      <mesh ref={meshRef} scale={[3.5, 3.5, 3.5]}>
-        <icosahedronGeometry args={[1, 6]} /> 
-        <MeshTransmissionMaterial
-          backside
-          samples={6}
-          thickness={2}
-          chromaticAberration={0.03}
-          anisotropy={0.1}
-          distortion={0.5}
-          distortionScale={0.5}
-          temporalDistortion={0.1}
-          iridescence={0.3}
-          color={new THREE.Color("#065f46")}
-          bg={new THREE.Color("#F5F5F4")}
-          transmission={0.9}
-          roughness={0.2}
-        />
-      </mesh>
-    </Float>
-  );
-};
-
-const Scene = () => (
-  <div className="fixed inset-0 z-0 w-full h-full pointer-events-none">
-    <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
-      <ambientLight intensity={0.8} color="#e7e5e4" />
-      <spotLight position={[10, 10, 10]} angle={0.3} penumbra={1} intensity={1} color="#fff" />
-      <Suspense fallback={null}>
-        <OrganicFluid />
-        <Environment preset="city" blur={0.8} /> 
-      </Suspense>
-    </Canvas>
+// CSS background replaces Three.js
+const AnimBg = () => (
+  <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+    <div className="absolute -top-32 -right-32 w-[550px] h-[550px] rounded-full bg-emerald-200/20 blur-3xl" style={{animation:'drift 20s ease-in-out infinite'}} />
+    <div className="absolute -bottom-40 -left-32 w-[450px] h-[450px] rounded-full bg-amber-100/15 blur-3xl" style={{animation:'drift 26s ease-in-out infinite reverse'}} />
+    <style>{`@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-30px)}}`}</style>
   </div>
 );
+
 
 // --- 3. UI Components ---
 const GlassInput = ({ icon: Icon, ...props }) => (
@@ -150,7 +109,7 @@ const SignupPage = () => {
   return (
     <div className="min-h-screen w-full bg-[#F5F5F4] flex items-center justify-center relative overflow-hidden selection:bg-emerald-200 selection:text-emerald-900">
       <GlobalStyles />
-      <Scene />
+      <AnimBg />
       
       <div className="relative z-10 w-full max-w-5xl px-6 grid md:grid-cols-2 gap-12 items-center">
         

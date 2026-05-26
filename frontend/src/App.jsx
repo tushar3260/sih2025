@@ -1,119 +1,79 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Loading from "./pages/Loading";
-import AyurvedaLanding from "./pages/AyurvedaLanding";
-import Login from "./pages/LoginPage";
-import PatientDashboard from "./pages/PatientDashboard";
-import SignupPage from "./pages/SignupPage";
-import AyurvedaDoctorDashboard from "./pages/AyurvedaDoctorDashboard";
-import Therapies from "./pages/Therapies";
-import BookAppointment from "./pages/BookAppointment";
-import { UserProvider } from "./context/userContext";
-import CreateTherapyForm from "./pages/CreateTherapyForm";
-import PatientAppointments from "./pages/patientappointment";
-import AddTherapy from "./pages/AddTherapy";
-import PanchakarmaAIsystem from "./pages/PanchkarmaAIsystem";
-import PractitionerForm from "./pages/PractitionerForm";
-import Record from "./pages/Record";
-import ProtectedRoute from "./components/ProtectedRoute";
-import HealthInfo from "./pages/HealthInfo";
+import { UserProvider }          from "./context/userContext";
+import { NotificationProvider }  from "./context/notificationContext";
+import { NotificationPanel }     from "./components/NotificationCenter";
+import ProtectedRoute            from "./components/ProtectedRoute";
 
-const App = () => {
-  return (
-    <UserProvider>
+// ── Lazy load ALL pages — they only download when the user navigates to them
+const AyurvedaLanding        = lazy(() => import("./pages/AyurvedaLanding"));
+const Login                  = lazy(() => import("./pages/LoginPage"));
+const SignupPage              = lazy(() => import("./pages/SignupPage"));
+const PatientDashboard       = lazy(() => import("./pages/PatientDashboard"));
+const AyurvedaDoctorDashboard = lazy(() => import("./pages/AyurvedaDoctorDashboard"));
+const Therapies              = lazy(() => import("./pages/Therapies"));
+const BookAppointment        = lazy(() => import("./pages/BookAppointment"));
+const CreateTherapyForm      = lazy(() => import("./pages/CreateTherapyForm"));
+const PatientAppointments    = lazy(() => import("./pages/patientappointment"));
+const AddTherapy             = lazy(() => import("./pages/AddTherapy"));
+const PanchakarmaAIsystem    = lazy(() => import("./pages/PanchkarmaAIsystem"));
+const PractitionerForm       = lazy(() => import("./pages/PractitionerForm"));
+const Record                 = lazy(() => import("./pages/Record"));
+const HealthInfo             = lazy(() => import("./pages/HealthInfo"));
+
+// Minimal spinner shown while a lazy chunk loads (usually < 200ms)
+const PageLoader = () => (
+  <div className="min-h-screen bg-[#F5F5F4] flex items-center justify-center">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-10 h-10 rounded-full border-3 border-emerald-900 border-t-transparent animate-spin" />
+      <span className="text-stone-400 text-sm font-medium">Loading…</span>
+    </div>
+  </div>
+);
+
+const App = () => (
+  <UserProvider>
+    <NotificationProvider>
+      {/* Global notification panel — always mounted, renders on demand */}
+      <NotificationPanel />
+
       <Router>
-        <Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
 
-          {/* ✅ Public Routes */}
-          <Route path="/" element={<AyurvedaLanding />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<SignupPage />} />
+            {/* ── Public ── */}
+            <Route path="/"                   element={<AyurvedaLanding />} />
+            <Route path="/login"              element={<Login />} />
+            <Route path="/register"           element={<SignupPage />} />
+            <Route path="/therapies"          element={<Therapies />} />
+            <Route path="/healthinfo"         element={<HealthInfo />} />
+            <Route path="/practitioner-setup" element={<PractitionerForm />} />
 
-          {/* ✅ Protected Routes */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <PatientDashboard />
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/book/:id"
-            element={
-              <ProtectedRoute>
-                <BookAppointment />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/appointments"
-            element={
-              <ProtectedRoute>
-                <PatientAppointments />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/add-therapy"
-            element={
-              
-                <AddTherapy />
-             
-            }
-          />
-          <Route path="/therapies" element={<Therapies />} />
-          <Route
-            path="/record"
-            element={
-              
-                <Record />
-              
-            }
-          />
-          <Route path="/practitioner-setup" element={<PractitionerForm />} />
-          <Route
-            path="/doctor-dashboard"
-            element={
-              <ProtectedRoute>
-                <UserProvider>
-                  <AyurvedaDoctorDashboard />
-                </UserProvider>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/create-therapy"
-            element={
-              
-                <CreateTherapyForm />
-              
-            }
-          />
+            {/* ── Protected Patient ── */}
+            <Route path="/dashboard"
+              element={<ProtectedRoute><PatientDashboard /></ProtectedRoute>} />
+            <Route path="/book/:id"
+              element={<ProtectedRoute><BookAppointment /></ProtectedRoute>} />
+            <Route path="/appointments"
+              element={<ProtectedRoute><PatientAppointments /></ProtectedRoute>} />
+            <Route path="/ai-consultant"
+              element={<ProtectedRoute><PanchakarmaAIsystem /></ProtectedRoute>} />
 
-          <Route
-            path="/healthinfo"
-            element={
-              
-                <HealthInfo />
-              
-            }
-          />
-        
+            {/* ── Protected Doctor ── */}
+            <Route path="/doctor-dashboard"
+              element={<ProtectedRoute><AyurvedaDoctorDashboard /></ProtectedRoute>} />
+            <Route path="/add-therapy"
+              element={<ProtectedRoute><AddTherapy /></ProtectedRoute>} />
+            <Route path="/create-therapy"
+              element={<ProtectedRoute><CreateTherapyForm /></ProtectedRoute>} />
+            <Route path="/record"
+              element={<ProtectedRoute><Record /></ProtectedRoute>} />
 
-          <Route
-            path="/ai-consultant"
-            element={
-              <ProtectedRoute>
-                <PanchakarmaAIsystem />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+          </Routes>
+        </Suspense>
       </Router>
-    </UserProvider>
-  );
-};
+    </NotificationProvider>
+  </UserProvider>
+);
 
 export default App;

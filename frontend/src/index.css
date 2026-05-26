@@ -1,0 +1,167 @@
+/* AyurSutra — Global CSS */
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+/* Tailwind base layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base Styles ──────────────────────────────────────────── */
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+    background-color: #F5F5F4;
+    color: #1C1917;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  button, a, input, textarea, select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  img, video { max-width: 100%; display: block; }
+
+  ::selection { background: #d1fae5; color: #064E3B; }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 10px; }
+
+  :focus-visible {
+    outline: 2px solid #064E3B;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* ─── Component Styles ─────────────────────────────────────── */
+@layer components {
+  /* Glass morphism card */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.70);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.80);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+    border-radius: 1rem;
+  }
+
+  .glass-card-dark {
+    background: rgba(6, 78, 59, 0.90);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  /* Nav glass */
+  .nav-glass {
+    background: rgba(255, 255, 255, 0.80);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, #064E3B, #059669);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Serif font shorthand */
+  .serif { font-family: 'Playfair Display', Georgia, serif; }
+
+  /* Input field */
+  .input-field {
+    @apply w-full bg-white/60 border border-stone-200 rounded-xl py-3.5 px-4 text-stone-800 placeholder-stone-400 text-sm font-medium transition-all;
+    @apply focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-600 focus:bg-white;
+    @apply shadow-sm;
+  }
+
+  /* Primary button */
+  .btn-primary {
+    @apply w-full bg-emerald-900 text-white py-3.5 rounded-xl font-bold text-sm;
+    @apply flex items-center justify-center gap-2;
+    @apply hover:bg-emerald-800 transition-all shadow-lg;
+    @apply disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  /* Secondary button */
+  .btn-secondary {
+    @apply w-full border-2 border-stone-200 text-stone-700 py-3 rounded-xl font-bold text-sm;
+    @apply flex items-center justify-center gap-2;
+    @apply hover:border-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 transition-all;
+  }
+}
+
+/* ─── Utility Styles ───────────────────────────────────────── */
+@layer utilities {
+  /* GPU layer hint */
+  .gpu { transform: translateZ(0); will-change: transform; }
+
+  /* Smooth hover card lift */
+  .card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.09);
+  }
+
+  /* Skeleton shimmer */
+  .skeleton {
+    background: linear-gradient(90deg, #f3f3f3 25%, #e8e8e8 50%, #f3f3f3 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 0.75rem;
+  }
+
+  /* Mobile safe area */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+}
+
+/* ─── Keyframes ────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes floatA {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(30px, -40px) scale(1.06); }
+}
+@keyframes floatB {
+  0%, 100% { transform: translate(0, 0); }
+  50%       { transform: translate(-40px, 30px) scale(1.05); }
+}
+@keyframes floatC {
+  0%, 100% { transform: translate(0, 0); }
+  33%       { transform: translate(20px, 15px); }
+  66%       { transform: translate(-15px, -20px); }
+}
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0); }
+  50%       { transform: translate(25px, -25px); }
+}
+@keyframes pulseSoft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
+.orb-a { animation: floatA 20s ease-in-out infinite; }
+.orb-b { animation: floatB 25s ease-in-out infinite; }
+.orb-c { animation: floatC 30s ease-in-out infinite; }
+.pulse-soft { animation: pulseSoft 2s ease-in-out infinite; }

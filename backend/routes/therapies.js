@@ -1,15 +1,23 @@
 import { Router } from "express";
-import { listTherapies, createTherapy,getTherapyByTherapyId,getTherapiesByUserId,getTherapiesByPractitionerId } from "../controllers/therapyController.js";
-import { protect, permit } from "../middleware/auth.js";
-import { runValidation } from "../middleware/validation.js";
-import { body } from "express-validator";
+import {
+  listTherapies,
+  getTherapyById,
+  getTherapiesByUserId,
+  getTherapiesByPractitionerId,
+  createTherapy,
+  updateTherapy,
+  deleteTherapy,
+} from "../controllers/therapyController.js";
 
 const r = Router();
 
-r.get("/", listTherapies);
-r.get("/user/:userId", getTherapiesByUserId);
-r.get("/practitioner/:practitionerId", getTherapiesByPractitionerId);
-r.get("/:therapyId", getTherapyByTherapyId);
-r.post("/", createTherapy);
+// List all (supports ?category=&search= query params)
+r.get("/",                            listTherapies);
+r.get("/user/:userId",                getTherapiesByUserId);
+r.get("/practitioner/:practitionerId",getTherapiesByPractitionerId);
+r.get("/:id",                         getTherapyById);
+r.post("/",                           createTherapy);
+r.patch("/:id",                       updateTherapy);
+r.delete("/:id",                      deleteTherapy);
 
 export default r;
