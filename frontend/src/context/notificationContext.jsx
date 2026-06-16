@@ -35,7 +35,7 @@ export const NotificationProvider = ({ children }) => {
 
     fetchNotifications();
 
-    const socket = io(SOCKET_URL, { transports: ["websocket"] });
+    const socket = io(SOCKET_URL, { transports: ["polling", "websocket"] });
     socketRef.current = socket;
 
     socket.on("connect", () => {
