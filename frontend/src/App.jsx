@@ -51,23 +51,23 @@ const App = () => (
 
             {/* ── Protected Patient ── */}
             <Route path="/dashboard"
-              element={<ProtectedRoute><PatientDashboard /></ProtectedRoute>} />
+              element={<ProtectedRoute allowedRoles={["patient", "admin"]}><PatientDashboard /></ProtectedRoute>} />
             <Route path="/book/:id"
-              element={<ProtectedRoute><BookAppointment /></ProtectedRoute>} />
+              element={<ProtectedRoute allowedRoles={["patient", "admin"]}><BookAppointment /></ProtectedRoute>} />
             <Route path="/appointments"
-              element={<ProtectedRoute><PatientAppointments /></ProtectedRoute>} />
+              element={<ProtectedRoute allowedRoles={["patient", "admin"]}><PatientAppointments /></ProtectedRoute>} />
             <Route path="/ai-consultant"
-              element={<ProtectedRoute><PanchakarmaAIsystem /></ProtectedRoute>} />
+              element={<ProtectedRoute allowedRoles={["patient", "admin"]}><PanchakarmaAIsystem /></ProtectedRoute>} />
 
             {/* ── Protected Doctor ── */}
             <Route path="/doctor-dashboard"
-              element={<ProtectedRoute><AyurvedaDoctorDashboard /></ProtectedRoute>} />
+              element={<ProtectedRoute allowedRoles={["practitioner", "admin"]}><AyurvedaDoctorDashboard /></ProtectedRoute>} />
             <Route path="/add-therapy"
-              element={<ProtectedRoute><AddTherapy /></ProtectedRoute>} />
+              element={<ProtectedRoute allowedRoles={["practitioner", "admin"]}><AddTherapy /></ProtectedRoute>} />
             <Route path="/create-therapy"
-              element={<ProtectedRoute><CreateTherapyForm /></ProtectedRoute>} />
+              element={<ProtectedRoute allowedRoles={["practitioner", "admin"]}><CreateTherapyForm /></ProtectedRoute>} />
             <Route path="/record"
-              element={<ProtectedRoute><Record /></ProtectedRoute>} />
+              element={<ProtectedRoute allowedRoles={["practitioner", "admin"]}><Record /></ProtectedRoute>} />
 
           </Routes>
         </Suspense>
