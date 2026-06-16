@@ -1,6 +1,6 @@
 import Review from "../models/Review.js";
 import Appointment from "../models/Appointment.js";
-import Practitioner from "../models/Practicioner.js";
+import Practitioner from "../models/Practitioner.js";
 import { createNotification } from "./notificationController.js";
 
 // ─────────────────────────────────────────────────────────────
