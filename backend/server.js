@@ -9,13 +9,27 @@ dotenv.config();
 const server = http.createServer(app);
 const PORT   = process.env.PORT || 5000;
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://ayursutra-alpha.vercel.app"
+];
+
+if (process.env.CORS_ORIGIN) {
+  const envOrigins = process.env.CORS_ORIGIN.split(",").map(o => o.trim());
+  allowedOrigins.push(...envOrigins);
+}
+
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:3000",
-      "https://ayursutra-alpha.vercel.app",
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith(".vercel.app")) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods:     ["GET", "POST"],
     credentials: true,
   },

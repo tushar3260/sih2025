@@ -67,3 +67,12 @@ export const login = async (req, res, next) => {
     next(err);
   }
 };
+
+export const getPatientsList = async (req, res, next) => {
+  try {
+    const list = await User.find({ role: "patient" }).select("name email phone").lean();
+    res.json(list);
+  } catch (err) {
+    next(err);
+  }
+};

@@ -1,7 +1,7 @@
 import Record from "../models/Record.js";
 import Patient from "../models/Patient.js";
 import Therapy from "../models/Therapy.js";
-import Practitioner from "../models/Practicioner.js";
+import Practitioner from "../models/Practitioner.js";
 import User from "../models/User.js";
 import mongoose from "mongoose";
 
@@ -81,10 +81,19 @@ export const createRecord = async (req, res) => {
 // ─────────────────────────────────────────────
 export const getRecords = async (req, res) => {
   try {
-    const records = await Record.find()
+    const query = {};
+    if (req.user.role === "patient") {
+      query.patient = req.user._id;
+    } else if (req.user.role === "practitioner") {
+      const prac = await Practitioner.findOne({ user: req.user._id });
+      if (!prac) return res.json([]);
+      query.doctor = prac._id;
+    }
+
+    const records = await Record.find(query)
       .populate("patient", "name email")
       .populate("therapy", "name code duration price")
-      .populate("doctor", "user specialty")
+      .populate({ path: "doctor", populate: { path: "user", select: "name email" } })
       .lean();
 
     res.json(records);
@@ -112,6 +121,17 @@ export const getRecordById = async (req, res) => {
 
     if (!record) {
       return res.status(404).json({ message: "Record not found" });
+    }
+
+    // Authorization checks
+    if (req.user.role === "patient" && String(record.patient?._id) !== String(req.user._id)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    if (req.user.role === "practitioner") {
+      const prac = await Practitioner.findOne({ user: req.user._id });
+      if (!prac || String(record.doctor?._id) !== String(prac._id)) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
     }
 
     res.json(record);

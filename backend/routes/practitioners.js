@@ -15,8 +15,8 @@ const r = Router();
 r.get("/",                     listPractitioners);
 r.get("/user/:userId",         getPractitionerByUserId);
 r.get("/:id",                  getPractitionerById);
-r.post("/",                    body("user").notEmpty(), createPractitioner);
-r.patch("/:id",                updatePractitioner);
+r.post("/",                    protect, permit("practitioner", "admin"), body("user").notEmpty(), createPractitioner);
+r.patch("/:id",                protect, permit("practitioner", "admin"), updatePractitioner);
 r.put("/:id/availability",     protect, permit("admin","practitioner"), body("availability").isArray(), updateAvailability);
 
 export default r;

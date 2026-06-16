@@ -6,13 +6,14 @@ import {
   updateRecord,
   deleteRecord,
 } from "../controllers/recordController.js";
+import { protect, permit } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.post("/", createRecord);
-router.get("/", getRecords);
-router.get("/:id", getRecordById);
-router.put("/:id", updateRecord);
-router.delete("/:id", deleteRecord);
+router.post("/", protect, permit("practitioner", "admin"), createRecord);
+router.get("/", protect, getRecords);
+router.get("/:id", protect, getRecordById);
+router.put("/:id", protect, permit("practitioner", "admin"), updateRecord);
+router.delete("/:id", protect, permit("practitioner", "admin"), deleteRecord);
 
 export default router;

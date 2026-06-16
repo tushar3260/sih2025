@@ -1,5 +1,5 @@
 import Appointment from "../models/Appointment.js";
-import Practitioner from "../models/Practicioner.js";
+import Practitioner from "../models/Practitioner.js";
 import Therapy from "../models/Therapy.js";
 import User from "../models/User.js";
 import { notifyDoctor } from "../services/socketService.js";

@@ -1,4 +1,4 @@
-import Practitioner from "../models/Practicioner.js";
+import Practitioner from "../models/Practitioner.js";
 import User from "../models/User.js";
 
 // ── List all practitioners ────────────────────────────────────
@@ -66,6 +66,15 @@ export const createPractitioner = async (req, res, next) => {
 export const updatePractitioner = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    const existingDoc = await Practitioner.findById(id);
+    if (!existingDoc) return res.status(404).json({ error: "Practitioner not found" });
+
+    // Check ownership
+    if (req.user.role !== "admin" && String(existingDoc.user) !== String(req.user._id)) {
+      return res.status(403).json({ error: "Forbidden - You do not own this profile" });
+    }
+
     const allowed = [
       "specialty", "availability", "breaks",
       "bio", "qualifications", "experience",
@@ -78,7 +87,6 @@ export const updatePractitioner = async (req, res, next) => {
       .populate("user", "name email phone role")
       .lean();
 
-    if (!updated) return res.status(404).json({ error: "Practitioner not found" });
     res.json(updated);
   } catch (err) { next(err); }
 };
@@ -90,11 +98,18 @@ export const updateAvailability = async (req, res, next) => {
     if (!Array.isArray(availability))
       return res.status(400).json({ error: "Availability must be an array" });
 
+    const existingDoc = await Practitioner.findById(req.params.id);
+    if (!existingDoc) return res.status(404).json({ error: "Practitioner not found" });
+
+    // Check ownership
+    if (req.user.role !== "admin" && String(existingDoc.user) !== String(req.user._id)) {
+      return res.status(403).json({ error: "Forbidden - You do not own this profile" });
+    }
+
     const updated = await Practitioner.findByIdAndUpdate(
       req.params.id, { availability }, { new: true }
     ).populate("user", "name email role").lean();
 
-    if (!updated) return res.status(404).json({ error: "Practitioner not found" });
     res.json(updated);
   } catch (err) { next(err); }
 };
