@@ -56,9 +56,9 @@ const LoginPage = () => {
     try {
       const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/user/login`, formData);
       if (response.data.success) {
-        setUser(response.data.user);
-        localStorage.setItem("user", JSON.stringify(response.data.user));
         localStorage.setItem("token", response.data.token);
+        localStorage.setItem("user", JSON.stringify(response.data.user));
+        setUser(response.data.user);
         setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
       } else {
         setMessage({ type: 'error', text: response.data.message || 'Invalid credentials.' });

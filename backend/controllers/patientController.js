@@ -20,8 +20,7 @@ export const getProfileByUserId = async (req, res, next) => {
     const patient = await Patient.findOne({ user: req.params.userId })
       .populate("user", "name email phone")
       .lean();
-    if (!patient) return res.status(404).json({ error: "Patient profile not found" });
-    res.json(patient);
+    res.json(patient || null);
   } catch (err) { next(err); }
 };
 
