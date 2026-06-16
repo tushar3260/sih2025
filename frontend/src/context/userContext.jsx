@@ -16,15 +16,14 @@ axios.interceptors.request.use(
 const UserContext = createContext();
 
 export const UserProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-
-  // ✅ Load user from localStorage when app starts
-  useEffect(() => {
+  const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("user");
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    try {
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
     }
-  }, []);
+  });
 
   // ✅ Keep user in localStorage in sync whenever it changes
   useEffect(() => {
