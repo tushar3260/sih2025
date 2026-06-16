@@ -1,17 +1,11 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 
-// ✅ Automatically inject token from localStorage into all outgoing requests
-axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// ✅ Automatically sync token from localStorage on startup
+const initialToken = localStorage.getItem("token");
+if (initialToken) {
+  axios.defaults.headers.common["Authorization"] = `Bearer ${initialToken}`;
+}
 
 const UserContext = createContext();
 
@@ -25,13 +19,18 @@ export const UserProvider = ({ children }) => {
     }
   });
 
-  // ✅ Keep user in localStorage in sync whenever it changes
+  // ✅ Keep user & token in localStorage and Axios headers in sync whenever it changes
   useEffect(() => {
     if (user) {
       localStorage.setItem("user", JSON.stringify(user));
+      const token = localStorage.getItem("token");
+      if (token) {
+        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      }
     } else {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
+      delete axios.defaults.headers.common["Authorization"];
     }
   }, [user]);
 
