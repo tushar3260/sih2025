@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter.js";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore.js";
-import Practitioner from "../models/Practicioner.js";
+import Practitioner from "../models/Practitioner.js";
 import Appointment from "../models/Appointment.js";
 
 // Extend dayjs with required plugins
