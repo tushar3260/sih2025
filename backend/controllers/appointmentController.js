@@ -6,7 +6,7 @@ import { notifyDoctor } from "../services/socketService.js";
 import { createNotification } from "./notificationController.js";
 import { HttpError } from "../utils/helpers.js";
 import { notifyBooking } from "../services/notificationService.js";
-import { generateSlots } from "../services/scheduling.js";
+import { generateSlots } from "../services/Scheduling.js";
 import dayjs from "dayjs";
 
 // ─────────────────────────────────────────────
