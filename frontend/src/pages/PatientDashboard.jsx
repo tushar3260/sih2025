@@ -124,11 +124,11 @@ const PatientDashboard = () => {
   const navigate = useNavigate();
 
   const navItems = [
-    { id: "dashboard",    label: "Overview"      },
-    { id: "appointments", label: "Schedule"      },
-    { id: "therapies",    label: "Therapies"     },
-    { id: "ai",           label: "AI Consultant" },
-    { id: "health",       label: "Health Info"   },
+    { id: "dashboard",    label: "Overview",      icon: Activity },
+    { id: "appointments", label: "Schedule",      icon: Calendar },
+    { id: "therapies",    label: "Therapies",     icon: Leaf     },
+    { id: "ai",           label: "AI Consultant", icon: Sparkles },
+    { id: "health",       label: "Health Info",   icon: User     },
   ];
 
   useEffect(() => {

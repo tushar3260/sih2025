@@ -1,33 +1,38 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 
+// ✅ Automatically inject token from localStorage into all outgoing requests
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 const UserContext = createContext();
 
 export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
 
-  // ✅ Load user and token from localStorage when app starts
+  // ✅ Load user from localStorage when app starts
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
-    const savedToken = localStorage.getItem("token");
-    if (savedUser && savedToken) {
+    if (savedUser) {
       setUser(JSON.parse(savedUser));
-      axios.defaults.headers.common["Authorization"] = `Bearer ${savedToken}`;
     }
   }, []);
 
-  // ✅ Keep user & token in localStorage and axios headers in sync whenever it changes
+  // ✅ Keep user in localStorage in sync whenever it changes
   useEffect(() => {
     if (user) {
       localStorage.setItem("user", JSON.stringify(user));
-      const token = localStorage.getItem("token");
-      if (token) {
-        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      }
     } else {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
-      delete axios.defaults.headers.common["Authorization"];
     }
   }, [user]);
 
